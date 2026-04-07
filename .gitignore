@@ -1,0 +1,12 @@
+build/out/*
+!build/out/README.md
+build/downloads/*
+!build/downloads/README.md
+build/dl/*
+!build/dl/README.md
+build/logs/*
+!build/logs/README.md
+build/ccache/*
+!build/ccache/README.md
+
+apps/public/app_demo/app_demo

@@ -1,0 +1,11 @@
+services:
+  imx6ull_100ask_pro:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: myplatform/imx6ull_100ask_pro:latest
+    working_dir: /workspace/myplatform
+    stdin_open: true
+    tty: true
+    volumes:
+      - ../../../../..:/workspace/myplatform

@@ -2,7 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
-APP_NAME="${1:-app_demo}"
+PRODUCT_NAME="${1:-demo_console}"
+APP_NAME="${2:-app_demo}"
 APP_DIR="${ROOT_DIR}/apps/public/${APP_NAME}"
 
 if [[ ! -d "${APP_DIR}" ]]; then
@@ -10,4 +11,5 @@ if [[ ! -d "${APP_DIR}" ]]; then
     exit 1
 fi
 
+echo "building app ${APP_NAME} for product ${PRODUCT_NAME}"
 make -C "${APP_DIR}"

@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "fetch.sh placeholder"
-echo "Later this script should sync Buildroot/Linux/U-Boot into third_party/."
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+git -C "${ROOT_DIR}" submodule sync --recursive
+git -C "${ROOT_DIR}" submodule update --init --recursive
+
+echo "third_party submodules are synced"

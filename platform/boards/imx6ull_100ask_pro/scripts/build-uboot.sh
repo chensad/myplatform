@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "U-Boot bridge script is not implemented yet."
-echo "Place the legacy build command or new board-local flow here later."
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+PRODUCT_NAME="${1:-demo_console}"
+
+exec "${ROOT_DIR}/platform/boards/imx6ull_100ask_pro/scripts/build-buildroot.sh" "${PRODUCT_NAME}" uboot-rebuild

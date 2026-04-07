@@ -1,0 +1,12 @@
+[submodule "third_party/buildroot/buildroot-2020.02"]
+	path = third_party/buildroot/buildroot-2020.02
+	url = https://github.com/chensad/mybuildroot.git
+	branch = vendor/100ask-base
+[submodule "third_party/uboot/imx-uboot2017.03"]
+	path = third_party/uboot/imx-uboot2017.03
+	url = https://github.com/chensad/myuboot.git
+	branch = vendor/100ask-base
+[submodule "third_party/linux/imx-linux4.9.88"]
+	path = third_party/linux/imx-linux4.9.88
+	url = https://github.com/chensad/mylinux.git
+	branch = vendor/100ask-base

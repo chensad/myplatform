@@ -20,6 +20,24 @@ myplatform/
   docs/
 ```
 
+## Quick Start
+
+新机器建议按这个顺序开始：
+
+```bash
+cd /path/to
+git clone <your-myplatform-repo>
+cd myplatform
+git submodule update --init --recursive
+./tools/bootstrap.sh imx6ull_100ask_pro
+./build/build.sh imx6ull_100ask_pro demo_console app:app_demo
+./build/build.sh imx6ull_100ask_pro demo_console buildroot
+```
+
+如果要用容器环境，参考：
+
+- `myplatform/platform/boards/imx6ull_100ask_pro/env/README.md`
+
 ## How To Modify App
 
 公共 app 放在：
@@ -101,24 +119,60 @@ myplatform/
 统一入口：
 
 ```bash
-./myplatform/tools/build.sh <board> <product> [component]
+./myplatform/build/build.sh <board> <product> [component]
 ```
 
 当前已放的示例：
 
 ```bash
-./myplatform/tools/build.sh imx6ull_100ask_pro demo_console all
-./myplatform/tools/build.sh imx6ull_100ask_pro demo_console app:app_demo
-./myplatform/tools/build.sh imx6ull_100ask_pro demo_console linux
-./myplatform/tools/build.sh imx6ull_100ask_pro demo_console uboot
-./myplatform/tools/build.sh imx6ull_100ask_pro demo_console buildroot
+./myplatform/build/build.sh imx6ull_100ask_pro demo_console all
+./myplatform/build/build.sh imx6ull_100ask_pro demo_console app:app_demo
+./myplatform/build/build.sh imx6ull_100ask_pro demo_console linux
+./myplatform/build/build.sh imx6ull_100ask_pro demo_console uboot
+./myplatform/build/build.sh imx6ull_100ask_pro demo_console buildroot
 ```
 
 说明：
 
-- 现在的脚本是“统一入口骨架”
-- 当前 `imx6ull_100ask_pro` 默认桥接到旧 `100ask_imx6ull-sdk`
-- 后面迁移到 `third_party + BR2_EXTERNAL` 时，入口不变，只换脚本内部实现
+- 主入口已经切到 `myplatform/build/build.sh`
+- `myplatform/tools/build.sh` 只是兼容转发
+- 当前 `imx6ull_100ask_pro` 会优先使用 `third_party/buildroot/buildroot-2020.02`、`third_party/linux/imx-linux4.9.88`、`third_party/uboot/imx-uboot2017.03`
+- 如果 `third_party` 对应源码不存在，会自动回退到旧 `100ask_imx6ull-sdk`
+- Buildroot 通过 `BR2_EXTERNAL` 挂接板级外部层，并通过 `*_OVERRIDE_SRCDIR` 指向本地 `third_party` 源码
+
+## Environment Setup
+
+推荐先跑：
+
+```bash
+./tools/bootstrap.sh imx6ull_100ask_pro
+```
+
+它会检查：
+
+- `git`
+- `make`
+- `gcc`
+- `g++`
+- `rsync`
+- `python3`
+- `sed`
+- `awk`
+
+并预创建：
+
+- `build/out`
+- `build/downloads`
+- `build/ccache`
+- `build/logs`
+
+第三方源码同步入口：
+
+```bash
+./tools/fetch.sh
+```
+
+它现在会同步 git 子模块，而不是再从旧 SDK 拷源码。
 
 ## Current Source Of Truth
 
@@ -145,9 +199,9 @@ myplatform/
 
 ## Recommended Next Steps
 
-下一步最值得继续做的是：
+当前最值得继续做的是：
 
-1. 把 `imx6ull_100ask_pro` 的现有 kernel / uboot / buildroot 关键配置逐步搬到 `myplatform/platform/boards/imx6ull_100ask_pro/`
-2. 给 `app_demo` 做一个真正可被 Buildroot 打包的外部 package 接入
-3. 把 `tools/fetch.sh` 做成能把第三方源码拉进 `third_party/` 的脚本
-4. 第二阶段再切 `BR2_EXTERNAL`
+1. 继续把 `buildroot/board` 和 `buildroot/configs` 迁到 `buildroot/external/`
+2. 明确 `demo_console` 产品层的 rootfs 装配规则
+3. 补 `drivers/out-of-tree` 的标准构建模板
+4. 给 `env/` 增加更完整的宿主依赖锁定

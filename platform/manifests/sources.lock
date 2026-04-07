@@ -1,20 +1,24 @@
 sources:
   buildroot:
     name: buildroot-2020.02
-    source: legacy-sdk
-    path: 100ask_imx6ull-sdk/Buildroot_2020.02.x
+    source: submodule-preferred
+    path: myplatform/third_party/buildroot/buildroot-2020.02
+    fallback: 100ask_imx6ull-sdk/Buildroot_2020.02.x
 
   linux:
     name: imx-linux4.9.88
-    source: legacy-sdk
-    path: 100ask_imx6ull-sdk/Linux-4.9.88
+    source: submodule-preferred
+    path: myplatform/third_party/linux/imx-linux4.9.88
+    fallback: 100ask_imx6ull-sdk/Linux-4.9.88
 
   uboot:
     name: imx-uboot2017.03
-    source: legacy-sdk
-    path: 100ask_imx6ull-sdk/Uboot-2017.03
+    source: submodule-preferred
+    path: myplatform/third_party/uboot/imx-uboot2017.03
+    fallback: 100ask_imx6ull-sdk/Uboot-2017.03
 
   toolchain:
     name: arm-buildroot-linux-gnueabihf_sdk-buildroot
-    source: legacy-sdk
-    path: 100ask_imx6ull-sdk/ToolChain/arm-buildroot-linux-gnueabihf_sdk-buildroot
+    source: buildroot-generated
+    path: myplatform/build/out/toolchains
+    fallback: 100ask_imx6ull-sdk/ToolChain/arm-buildroot-linux-gnueabihf_sdk-buildroot

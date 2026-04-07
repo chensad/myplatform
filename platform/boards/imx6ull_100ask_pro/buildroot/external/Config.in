@@ -1,3 +1,5 @@
 menu "imx6ull_100ask_pro external options"
 
+source "$BR2_EXTERNAL_IMX6ULL_100ASK_PRO_PATH/../../../../../apps/public/app_demo/package/buildroot/Config.in"
+
 endmenu
