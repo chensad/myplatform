@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Codex <codex@example.com>
+Date: Tue, 7 Apr 2026 00:00:00 +0000
+Subject: [PATCH] scripts/dtc: pass -fcommon for yylloc with newer GCC
+
+Older dtc sources in this vendor kernel define yylloc from both the lexer
+and parser objects. Newer GCC defaults to -fno-common, which turns that
+into a link failure when Buildroot builds the kernel fetched from the
+vendor git repository.
+
+Add -fcommon only for the two generated dtc objects.
+---
+ scripts/dtc/Makefile | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/scripts/dtc/Makefile b/scripts/dtc/Makefile
+--- a/scripts/dtc/Makefile
++++ b/scripts/dtc/Makefile
+@@ -21,8 +21,8 @@
+ HOSTCFLAGS_treesource.o := $(HOSTCFLAGS_DTC)
+ HOSTCFLAGS_util.o := $(HOSTCFLAGS_DTC)
+ 
+-HOSTCFLAGS_dtc-lexer.lex.o := $(HOSTCFLAGS_DTC)
+-HOSTCFLAGS_dtc-parser.tab.o := $(HOSTCFLAGS_DTC)
++HOSTCFLAGS_dtc-lexer.lex.o := $(HOSTCFLAGS_DTC) -fcommon
++HOSTCFLAGS_dtc-parser.tab.o := $(HOSTCFLAGS_DTC) -fcommon
+ 
+ # dependencies on generated files need to be listed explicitly
+ $(obj)/dtc-lexer.lex.o: $(obj)/dtc-parser.tab.h
+-- 
+2.34.1

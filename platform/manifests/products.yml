@@ -1,0 +1,12 @@
+products:
+  - name: demo_console
+    description: Minimal console product for platform bring-up.
+    apps:
+      - app_demo
+    rootfs_overlays:
+      - platform/products/demo_console/rootfs-overlay
+
+  - name: demo_qt
+    description: Reserved product variant for future UI builds.
+    apps: []
+    rootfs_overlays: []

@@ -1,0 +1,18 @@
+boards:
+  - name: imx6ull_100ask_pro
+    soc: imx6ull
+    vendor: 100ask
+    legacy_sdk: 100ask_imx6ull-sdk
+    buildroot: buildroot-2020.02
+    linux: imx-linux4.9.88
+    uboot: imx-uboot2017.03
+    default_product: demo_console
+
+  - name: imx6ull_100ask_mini
+    soc: imx6ull
+    vendor: 100ask
+    legacy_sdk: 100ask_imx6ull-sdk
+    buildroot: buildroot-2020.02
+    linux: imx-linux4.9.88
+    uboot: imx-uboot2017.03
+    default_product: demo_console

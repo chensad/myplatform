@@ -1,0 +1,4 @@
+config BR2_PACKAGE_APP_DEMO
+    bool "app_demo"
+    help
+      Minimal demo application for the platform skeleton.
