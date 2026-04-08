@@ -141,6 +141,10 @@ make BOARD=imx6ull_100ask_pro uboot
 make BOARD=imx6ull_100ask_pro buildroot
 ```
 
+日常编译细节见：
+
+- `myplatform/docs/build_guide.md`
+
 说明：
 
 - 主入口已经切到仓库根目录 `Makefile`
