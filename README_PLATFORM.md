@@ -5,7 +5,7 @@
 当前策略：
 
 - 保留现有 `100ask_imx6ull-sdk/` 作为历史兼容层
-- 新架构目录用于承接后续 app、驱动、板级配置和统一编译入口
+- 新架构目录用于承接后续 app、驱动、板级配置和统一构建入口
 - 第一阶段先统一目录、入口和约束，不直接替换旧 SDK
 
 ## Directory Overview
@@ -30,8 +30,8 @@ git clone <your-myplatform-repo>
 cd myplatform
 git submodule update --init --recursive
 ./tools/bootstrap.sh imx6ull_100ask_pro
-./build/build.sh imx6ull_100ask_pro demo_console app:app_demo
-./build/build.sh imx6ull_100ask_pro demo_console buildroot
+make BOARD=imx6ull_100ask_pro app APP=app_demo
+make BOARD=imx6ull_100ask_pro buildroot
 ```
 
 如果要用容器环境，参考：
@@ -63,10 +63,19 @@ git submodule update --init --recursive
 
 1. 复制目录结构
 2. 修改 `src/` 和 `include/`
-3. 修改 `CMakeLists.txt`
+3. 修改 `Makefile`
 4. 修改 `package/buildroot/Config.in`
 5. 修改 `package/buildroot/<app>.mk`
-6. 在产品清单里把它加入对应产品
+6. 在机型 `model.mk` 或板级 Buildroot 配置里把它接入
+
+如果 app 需要机型宏，统一从 `platform/boards/<board>/model.mk` 注入。当前示例使用：
+
+- `MODEL_APP_CPPFLAGS`
+
+这些宏会：
+
+- 在单独执行 `make BOARD=<board> app APP=<app>` 时传给 app 本身
+- 在 Buildroot 打包 app 时通过 `MYPLATFORM_APP_CPPFLAGS` 传给 app 的 Buildroot package
 
 ## How To Modify Drivers
 
@@ -119,26 +128,34 @@ git submodule update --init --recursive
 统一入口：
 
 ```bash
-./myplatform/build/build.sh <board> <product> [component]
+make BOARD=<board> [target]
 ```
 
 当前已放的示例：
 
 ```bash
-./myplatform/build/build.sh imx6ull_100ask_pro demo_console all
-./myplatform/build/build.sh imx6ull_100ask_pro demo_console app:app_demo
-./myplatform/build/build.sh imx6ull_100ask_pro demo_console linux
-./myplatform/build/build.sh imx6ull_100ask_pro demo_console uboot
-./myplatform/build/build.sh imx6ull_100ask_pro demo_console buildroot
+make BOARD=imx6ull_100ask_pro vars
+make BOARD=imx6ull_100ask_pro app APP=app_demo
+make BOARD=imx6ull_100ask_pro linux
+make BOARD=imx6ull_100ask_pro uboot
+make BOARD=imx6ull_100ask_pro buildroot
 ```
 
 说明：
 
-- 主入口已经切到 `myplatform/build/build.sh`
-- `myplatform/tools/build.sh` 只是兼容转发
+- 主入口已经切到仓库根目录 `Makefile`
+- `myplatform/build/build.sh` 和 `myplatform/tools/build.sh` 只是兼容转发
 - 当前 `imx6ull_100ask_pro` 会优先使用 `third_party/buildroot/buildroot-2020.02`、`third_party/linux/imx-linux4.9.88`、`third_party/uboot/imx-uboot2017.03`
 - 如果 `third_party` 对应源码不存在，会自动回退到旧 `100ask_imx6ull-sdk`
 - Buildroot 通过 `BR2_EXTERNAL` 挂接板级外部层，并通过 `*_OVERRIDE_SRCDIR` 指向本地 `third_party` 源码
+- 机型配置真源是 `platform/boards/<board>/model.mk`
+
+`model.mk` 当前负责：
+
+- 选择 third_party 源码路径
+- 定义机型功能宏
+- 给 app 注入 `CPPFLAGS`
+- 追加 Buildroot 配置片段
 
 ## Environment Setup
 
@@ -178,14 +195,14 @@ git submodule update --init --recursive
 
 当前建议优先维护这几个文件：
 
-- `myplatform/platform/manifests/boards.yml`
-- `myplatform/platform/manifests/products.yml`
+- `myplatform/platform/boards/<board>/board.mk`
+- `myplatform/platform/boards/<board>/model.mk`
 - `myplatform/platform/manifests/sources.lock`
 
 它们分别描述：
 
-- 板卡清单
-- 产品清单
+- 板级路径和默认约束
+- 机型功能和第三方源码选择
 - 第三方源码版本锁定
 
 ## Migration Rule
@@ -194,14 +211,14 @@ git submodule update --init --recursive
 
 1. 旧 SDK 继续保留，不删不重命名
 2. 新 app、新驱动、新板级逻辑优先落到新骨架
-3. 编译入口统一从 `myplatform/tools/build.sh` 进入
+3. 编译入口统一从仓库根目录 `Makefile` 进入
 4. 旧 SDK 只作为兼容构建实现和历史参考
 
 ## Recommended Next Steps
 
 当前最值得继续做的是：
 
-1. 继续把 `buildroot/board` 和 `buildroot/configs` 迁到 `buildroot/external/`
-2. 明确 `demo_console` 产品层的 rootfs 装配规则
+1. 继续把 `buildroot/board` 和 `buildroot/configs` 迁到更标准的 `buildroot/external/` 结构
+2. 把机型功能开关进一步接到 Buildroot fragment、驱动和 overlay 选择
 3. 补 `drivers/out-of-tree` 的标准构建模板
 4. 给 `env/` 增加更完整的宿主依赖锁定

@@ -10,4 +10,15 @@
 - `build-apps.sh`
 - `enter-env.sh`
 
-这些脚本负责把顶层 `build/build.sh` 的请求翻译成具体板级构建动作。
+当前这些脚本主要是兼容层。
+
+真实构建调度已经切到仓库根目录 `Makefile`：
+
+```bash
+make BOARD=imx6ull_100ask_pro buildroot
+make BOARD=imx6ull_100ask_pro linux
+make BOARD=imx6ull_100ask_pro uboot
+make BOARD=imx6ull_100ask_pro app APP=app_demo
+```
+
+这些脚本现在只负责把旧入口转发到 `make`，避免已有使用方式立即失效。

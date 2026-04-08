@@ -11,9 +11,9 @@
 目录分工：
 
 - `apps/` 放用户态应用和公共库
-- `platform/` 放板卡、产品、清单和公共平台逻辑
+- `platform/` 放板卡、机型配置、清单和公共平台逻辑
 - `third_party/` 放 Buildroot、Linux、U-Boot 等外部源码入口
-- `build/` 放统一构建入口和本地构建工作区
+- `build/` 放本地构建工作区
 - `tools/` 放初始化、同步、打包、对比等通用脚本
 - `docs/` 放架构、板卡、发布相关文档
 
@@ -23,7 +23,13 @@
 git submodule update --init --recursive
 ./tools/bootstrap.sh imx6ull_100ask_pro
 ./tools/fetch.sh
-./build/build.sh imx6ull_100ask_pro demo_console buildroot
+make BOARD=imx6ull_100ask_pro buildroot
+```
+
+兼容入口仍保留：
+
+```bash
+./build/build.sh imx6ull_100ask_pro buildroot
 ```
 
 详细使用说明见 `README_PLATFORM.md`。

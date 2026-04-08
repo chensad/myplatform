@@ -6,49 +6,57 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 usage() {
     cat <<'EOF'
 usage:
-  ./build/build.sh <board> <product> [component]
+  ./build/build.sh <board> [component]
+  ./build/build.sh <board> <output_tag> [component]
 
 examples:
-  ./build/build.sh imx6ull_100ask_pro demo_console all
-  ./build/build.sh imx6ull_100ask_pro demo_console app:app_demo
-  ./build/build.sh imx6ull_100ask_pro demo_console linux
-  ./build/build.sh imx6ull_100ask_pro demo_console uboot
+  ./build/build.sh imx6ull_100ask_pro
+  ./build/build.sh imx6ull_100ask_pro buildroot
   ./build/build.sh imx6ull_100ask_pro demo_console buildroot
+  ./build/build.sh imx6ull_100ask_pro app:app_demo
 EOF
 }
 
 BOARD="${1:-}"
-PRODUCT="${2:-}"
-COMPONENT="${3:-all}"
+ARG2="${2:-}"
+ARG3="${3:-}"
+OUTPUT_TAG=""
+COMPONENT="all"
 
-if [[ -z "${BOARD}" || -z "${PRODUCT}" ]]; then
+if [[ -z "${BOARD}" ]]; then
     usage
     exit 1
 fi
 
-BOARD_DIR="${ROOT_DIR}/platform/boards/${BOARD}"
+if [[ -n "${ARG3}" ]]; then
+    OUTPUT_TAG="${ARG2}"
+    COMPONENT="${ARG3}"
+elif [[ -n "${ARG2}" ]]; then
+    case "${ARG2}" in
+        all|buildroot|linux|uboot|vars|help|app:*)
+            COMPONENT="${ARG2}"
+            ;;
+        *)
+            OUTPUT_TAG="${ARG2}"
+            ;;
+    esac
+fi
 
-if [[ ! -d "${BOARD_DIR}" ]]; then
-    echo "unknown board: ${BOARD}" >&2
-    exit 1
+MAKE_ARGS=(
+    -C "${ROOT_DIR}"
+    "BOARD=${BOARD}"
+)
+
+if [[ -n "${OUTPUT_TAG}" ]]; then
+    MAKE_ARGS+=("OUTPUT_TAG=${OUTPUT_TAG}")
 fi
 
 case "${COMPONENT}" in
-    all)
-        "${BOARD_DIR}/scripts/build-apps.sh" "${PRODUCT}" app_demo
-        "${BOARD_DIR}/scripts/build-buildroot.sh" "${PRODUCT}" all
-        ;;
-    linux)
-        "${BOARD_DIR}/scripts/build-linux.sh" "${PRODUCT}"
-        ;;
-    uboot)
-        "${BOARD_DIR}/scripts/build-uboot.sh" "${PRODUCT}"
-        ;;
-    buildroot)
-        "${BOARD_DIR}/scripts/build-buildroot.sh" "${PRODUCT}" all
+    all|buildroot|linux|uboot|vars|help)
+        exec make "${MAKE_ARGS[@]}" "${COMPONENT}"
         ;;
     app:*)
-        "${BOARD_DIR}/scripts/build-apps.sh" "${PRODUCT}" "${COMPONENT#app:}"
+        exec make "${MAKE_ARGS[@]}" "APP=${COMPONENT#app:}" app
         ;;
     *)
         echo "unsupported component: ${COMPONENT}" >&2

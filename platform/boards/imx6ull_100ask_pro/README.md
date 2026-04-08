@@ -10,8 +10,10 @@
 
 目录分工：
 
-- `board.env` 板级路径和变量真源
-- `scripts/` 板级编译脚本
+- `board.env` 兼容旧脚本使用的板级路径变量
+- `board.mk` Makefile 侧的板级路径真源
+- `model.mk` 机型功能、third_party 选择和 app 宏真源
+- `scripts/` 板级兼容脚本
 - `linux/` 内核 defconfig、patch、fragment
 - `uboot/` U-Boot defconfig、patch、fragment
 - `buildroot/` Buildroot defconfig、board 资源、external 层
@@ -22,8 +24,25 @@
 当前关键入口：
 
 ```bash
-./build/build.sh imx6ull_100ask_pro demo_console buildroot
+make BOARD=imx6ull_100ask_pro buildroot
 ```
+
+常用目标：
+
+```bash
+make BOARD=imx6ull_100ask_pro vars
+make BOARD=imx6ull_100ask_pro app APP=app_demo
+make BOARD=imx6ull_100ask_pro linux
+make BOARD=imx6ull_100ask_pro uboot
+make BOARD=imx6ull_100ask_pro buildroot
+```
+
+`model.mk` 当前控制：
+
+- `MODEL_THIRD_PARTY_*`：决定实际使用的 Buildroot/Linux/U-Boot 源码目录
+- `MODEL_FEATURE_*`：机型功能开关
+- `MODEL_APP_CPPFLAGS`：注入 app 的 `CONFIG_*` 宏
+- `MODEL_BUILDROOT_EXTRA_CONFIGS`：追加 Buildroot 配置片段
 
 迁移来源：
 
@@ -31,4 +50,4 @@
 - U-Boot 配置来自 `100ask_imx6ull-sdk/Uboot-2017.03`
 - Buildroot 配置和 board 资源来自 `100ask_imx6ull-sdk/Buildroot_2020.02.x`
 
-这块板已经完成“从 `myplatform` 统一入口出镜像”的第一阶段迁移。
+这块板已经完成“从 `myplatform` 统一入口出镜像”的第一阶段迁移，当前统一入口以根目录 `Makefile` 为主，`scripts/` 仅保留兼容包装。
