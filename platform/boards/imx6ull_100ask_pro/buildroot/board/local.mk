@@ -27,3 +27,25 @@ HOST_LIBGLIB2_POST_PATCH_HOOKS += HOST_LIBGLIB2_DISABLE_LIBELF_PROBE
 # host-gdb 8.2.1 enables the legacy ARM simulator by default.
 # The simulator is not needed for target image generation.
 HOST_GDB_CONF_OPTS += --disable-sim
+
+define QT5BASE_FIX_GCC13_LIMITS
+	awk '1; /^#include <string.h>$$/ && !done {print "#include <limits>"; done=1}' \
+		$(@D)/src/corelib/global/qendian.h > $(@D)/src/corelib/global/qendian.h.fixed
+	mv $(@D)/src/corelib/global/qendian.h.fixed $(@D)/src/corelib/global/qendian.h
+	awk '1; /^#include <QtCore\/qbytearray.h>$$/ && !done {print "#include <limits>"; done=1}' \
+		$(@D)/src/corelib/tools/qbytearraymatcher.h > $(@D)/src/corelib/tools/qbytearraymatcher.h.fixed
+	mv $(@D)/src/corelib/tools/qbytearraymatcher.h.fixed $(@D)/src/corelib/tools/qbytearraymatcher.h
+	awk '1; /^#include <QtCore\/qstringview.h>$$/ && !done {print "#include <limits>"; done=1}' \
+		$(@D)/src/tools/moc/generator.cpp > $(@D)/src/tools/moc/generator.cpp.fixed
+	mv $(@D)/src/tools/moc/generator.cpp.fixed $(@D)/src/tools/moc/generator.cpp
+endef
+
+QT5BASE_POST_PATCH_HOOKS += QT5BASE_FIX_GCC13_LIMITS
+
+define QT5DECLARATIVE_FIX_GCC13_LIMITS
+	awk '1; /^#include <private\/qv4global_p.h>$$/ && !done {print "#include <limits>"; done=1}' \
+		$(@D)/src/qml/jsruntime/qv4propertykey_p.h > $(@D)/src/qml/jsruntime/qv4propertykey_p.h.fixed
+	mv $(@D)/src/qml/jsruntime/qv4propertykey_p.h.fixed $(@D)/src/qml/jsruntime/qv4propertykey_p.h
+endef
+
+QT5DECLARATIVE_POST_PATCH_HOOKS += QT5DECLARATIVE_FIX_GCC13_LIMITS
