@@ -80,6 +80,10 @@ make -C "${BUILDROOT_SRC}" \
     BR2_DL_DIR="${DL_DIR}" \
     defconfig
 
+#
+# Linux/U-Boot sources are pinned by myplatform and injected from third_party
+# through *_OVERRIDE_SRCDIR. Keep board config fragments source-agnostic.
+#
 make -C "${BUILDROOT_SRC}" \
     O="${OUTPUT_DIR}" \
     BR2_EXTERNAL="${EXTERNAL_DIR}" \

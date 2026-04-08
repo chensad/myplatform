@@ -27,3 +27,58 @@ cd /home/compile/workstation/project/codex/myplatform
 ```
 
 进入容器后，继续执行统一入口即可。
+
+如果是一台全新的 Ubuntu，想直接通过 Docker 环境开始编译，建议按下面顺序执行。
+
+1. 先确认宿主机已经安装 Docker 和 Docker Compose：
+
+```bash
+docker --version
+docker compose version
+```
+
+2. 拉取 `myplatform` 仓库并同步子模块：
+
+```bash
+git clone <your-myplatform-repo>
+cd myplatform
+git submodule update --init --recursive
+```
+
+3. 构建这块板的 Docker 镜像：
+
+```bash
+cd platform/boards/imx6ull_100ask_pro/env
+docker compose build
+```
+
+这一步会读取当前目录下的 `Dockerfile` 和 `docker-compose.yml`，生成镜像 `myplatform/imx6ull_100ask_pro:latest`。
+
+4. 回到仓库根目录并进入容器环境：
+
+```bash
+cd /path/to/myplatform
+./platform/boards/imx6ull_100ask_pro/scripts/enter-env.sh --docker
+```
+
+这一步会启动容器，并把当前仓库挂载到容器内的 `/workspace/myplatform`。
+
+5. 在容器里执行统一构建入口：
+
+```bash
+./tools/bootstrap.sh imx6ull_100ask_pro
+./build/build.sh imx6ull_100ask_pro demo_console buildroot
+```
+
+常见单项构建命令：
+
+```bash
+./build/build.sh imx6ull_100ask_pro demo_console app:app_demo
+./build/build.sh imx6ull_100ask_pro demo_console linux
+./build/build.sh imx6ull_100ask_pro demo_console uboot
+```
+
+注意：
+
+- 当前容器入口会把仓库目录直接挂载进去，所以容器内外看到的是同一份源码和 `build/` 输出。
+- 当前实现没有做宿主机 UID/GID 映射，容器里生成的文件可能显示为 `root` 属主。
