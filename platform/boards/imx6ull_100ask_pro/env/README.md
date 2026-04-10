@@ -82,3 +82,32 @@ cd /path/to/myplatform
 
 - 当前容器入口会把仓库目录直接挂载进去，所以容器内外看到的是同一份源码和 `build/` 输出。
 - 当前实现没有做宿主机 UID/GID 映射，容器里生成的文件可能显示为 `root` 属主。
+
+## Host Fakeroot Note
+
+当前这块板的 Buildroot 仍然是 2020.02 基线。
+
+在较新的 Ubuntu / WSL 宿主机上，Buildroot 自带的 `host-fakeroot 1.20.2`
+可能无法正确伪造 rootfs owner，典型现象是：
+
+- 最终 `rootfs.ext2` / `rootfs.tar` 里的文件 owner 变成宿主用户 UID/GID
+- `/bin/login` 不是 `0:0` 的 setuid root 程序
+- 启动后 root 登录报：
+  `login: can't set groups: Operation not permitted`
+
+当前仓库在板级 `buildroot/board/local.mk` 里把 `host-fakeroot`
+切到了宿主系统安装的 `fakeroot 1.33 sysv`。
+
+如果后续换机器后又遇到同类问题，先检查：
+
+```bash
+ls -l build/out/imx6ull_100ask_pro/demo_console/buildroot/host/bin/fakeroot
+build/out/imx6ull_100ask_pro/demo_console/buildroot/host/bin/fakeroot -v
+debugfs -R 'stat /bin/login' build/out/imx6ull_100ask_pro/demo_console/buildroot/images/rootfs.ext2
+```
+
+预期至少应满足：
+
+- `host/bin/fakeroot` 指向系统 `fakeroot-sysv`
+- 版本不低于 `1.33`
+- 镜像里的 `/bin/login` owner 为 `0:0`

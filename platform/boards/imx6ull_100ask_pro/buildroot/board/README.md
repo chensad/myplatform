@@ -67,6 +67,25 @@
 - 禁掉 `host-libglib2` 的 `libelf` 探测
 - 给 `host-gdb` 加 `--disable-sim`
 
+当前 `host-fakeroot` 还有一条额外约束：
+
+- 在较新的宿主 glibc 上，Buildroot 2020.02 自带的 `fakeroot 1.20.2`
+  不能正确伪造 `stat` / owner 元数据
+- 现阶段通过 `HOST_FAKEROOT_POST_INSTALL_HOOKS` 把
+  `$(HOST_DIR)/bin/fakeroot`、`faked`、`libfakeroot*`
+  切到宿主系统已安装的 `fakeroot 1.33 sysv` 版本
+
+判断是否命中这个问题时，可优先看最终镜像里的 owner：
+
+- 正常应为 `0:0`
+- 如果 `rootfs.ext2` 里 `/bin/login`、`/bin/bash`、`/etc/init.d/rcS`
+  变成了宿主用户 UID/GID，比如 `1000:1000`，通常就是 `host-fakeroot`
+  没有生效
+
+对应现象通常是：
+
+- `login: can't set groups: Operation not permitted`
+
 这些都不是目标板功能本身，而是“旧 Buildroot 在新宿主机上继续能编”的修补。
 
 ## Recommended Rule Going Forward

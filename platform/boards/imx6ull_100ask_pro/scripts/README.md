@@ -18,6 +18,7 @@
 make BOARD=imx6ull_100ask_pro buildroot
 make BOARD=imx6ull_100ask_pro linux
 make BOARD=imx6ull_100ask_pro uboot
+make BOARD=imx6ull_100ask_pro busybox
 make BOARD=imx6ull_100ask_pro app APP=app_demo
 ```
 

@@ -15,6 +15,9 @@ case "${MAKE_TARGET}" in
     uboot-rebuild)
         exec make -C "${ROOT_DIR}" BOARD=imx6ull_100ask_pro OUTPUT_TAG="${OUTPUT_TAG}" uboot
         ;;
+    busybox-rebuild)
+        exec make -C "${ROOT_DIR}" BOARD=imx6ull_100ask_pro OUTPUT_TAG="${OUTPUT_TAG}" busybox
+        ;;
     *)
         exec make -C "${ROOT_DIR}" BOARD=imx6ull_100ask_pro OUTPUT_TAG="${OUTPUT_TAG}" buildroot
         ;;

@@ -13,6 +13,7 @@ examples:
   ./build/build.sh imx6ull_100ask_pro
   ./build/build.sh imx6ull_100ask_pro buildroot
   ./build/build.sh imx6ull_100ask_pro demo_console buildroot
+  ./build/build.sh imx6ull_100ask_pro busybox
   ./build/build.sh imx6ull_100ask_pro app:app_demo
 EOF
 }
@@ -33,7 +34,7 @@ if [[ -n "${ARG3}" ]]; then
     COMPONENT="${ARG3}"
 elif [[ -n "${ARG2}" ]]; then
     case "${ARG2}" in
-        all|buildroot|linux|uboot|vars|help|app:*)
+        all|buildroot|linux|uboot|busybox|vars|help|app:*)
             COMPONENT="${ARG2}"
             ;;
         *)
@@ -52,7 +53,7 @@ if [[ -n "${OUTPUT_TAG}" ]]; then
 fi
 
 case "${COMPONENT}" in
-    all|buildroot|linux|uboot|vars|help)
+    all|buildroot|linux|uboot|busybox|vars|help)
         exec make "${MAKE_ARGS[@]}" "${COMPONENT}"
         ;;
     app:*)

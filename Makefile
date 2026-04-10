@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-KNOWN_COMPONENTS := all app buildroot linux uboot vars help
+KNOWN_COMPONENTS := all app buildroot linux uboot busybox vars help
 
 ifeq ($(filter help,$(MAKECMDGOALS)),)
 ifndef BOARD
@@ -39,7 +39,7 @@ APP_DIR := $(ROOT_DIR)apps/public/$(APP)
 APP_CPPFLAGS := $(MODEL_APP_CPPFLAGS)
 endif
 
-.PHONY: help vars all app buildroot linux uboot prepare-buildroot-tree prepare-buildroot-defconfig
+.PHONY: help vars all app buildroot linux uboot busybox prepare-buildroot-tree prepare-buildroot-defconfig
 
 help:
 	@printf '%s\n' \
@@ -52,12 +52,14 @@ help:
 		'  buildroot  build complete Buildroot image' \
 		'  linux      rebuild Linux through Buildroot' \
 		'  uboot      rebuild U-Boot through Buildroot' \
+		'  busybox    rebuild BusyBox through Buildroot' \
 		'  vars       print resolved board/model variables' \
 		'' \
 		'examples:' \
 		'  make BOARD=imx6ull_100ask_pro buildroot' \
 		'  make BOARD=imx6ull_100ask_pro app APP=app_demo' \
-		'  make BOARD=imx6ull_100ask_pro linux'
+		'  make BOARD=imx6ull_100ask_pro linux' \
+		'  make BOARD=imx6ull_100ask_pro busybox'
 
 vars:
 	@printf '%s\n' \
@@ -152,3 +154,20 @@ uboot: prepare-buildroot-defconfig
 		UBOOT_OVERRIDE_SRCDIR="$(UBOOT_SRC)" \
 		MYPLATFORM_APP_CPPFLAGS="$(APP_CPPFLAGS)" \
 		uboot-rebuild
+
+busybox: prepare-buildroot-defconfig
+	$(MAKE) -C "$(BUILDROOT_SRC)" \
+		O="$(BUILDROOT_OUTPUT_DIR)" \
+		BR2_EXTERNAL="$(BOARD_BUILDROOT_EXTERNAL_DIR)" \
+		BR2_DEFCONFIG="$(BUILDROOT_MERGED_DEFCONFIG)" \
+		BR2_DL_DIR="$(DOWNLOAD_DIR)" \
+		defconfig
+	$(MAKE) -C "$(BUILDROOT_SRC)" \
+		O="$(BUILDROOT_OUTPUT_DIR)" \
+		BR2_EXTERNAL="$(BOARD_BUILDROOT_EXTERNAL_DIR)" \
+		BR2_DL_DIR="$(DOWNLOAD_DIR)" \
+		LINUX_OVERRIDE_SRCDIR="$(KERNEL_SRC)" \
+		LINUX_HEADERS_OVERRIDE_SRCDIR="$(KERNEL_SRC)" \
+		UBOOT_OVERRIDE_SRCDIR="$(UBOOT_SRC)" \
+		MYPLATFORM_APP_CPPFLAGS="$(APP_CPPFLAGS)" \
+		busybox-rebuild

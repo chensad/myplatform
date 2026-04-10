@@ -17,6 +17,17 @@ endef
 
 HOST_FAKEROOT_POST_PATCH_HOOKS += HOST_FAKEROOT_FIX_STAT_VER
 
+define HOST_FAKEROOT_USE_SYSTEM_SYSV
+	rm -f $(HOST_DIR)/bin/fakeroot $(HOST_DIR)/bin/faked
+	ln -sf /usr/bin/fakeroot-sysv $(HOST_DIR)/bin/fakeroot
+	ln -sf /usr/bin/faked-sysv $(HOST_DIR)/bin/faked
+	rm -f $(HOST_DIR)/lib/libfakeroot.so $(HOST_DIR)/lib/libfakeroot-0.so
+	ln -sf /usr/lib/x86_64-linux-gnu/libfakeroot/libfakeroot-sysv.so $(HOST_DIR)/lib/libfakeroot.so
+	ln -sf /usr/lib/x86_64-linux-gnu/libfakeroot/libfakeroot-0.so $(HOST_DIR)/lib/libfakeroot-0.so
+endef
+
+HOST_FAKEROOT_POST_INSTALL_HOOKS += HOST_FAKEROOT_USE_SYSTEM_SYSV
+
 define HOST_LIBGLIB2_DISABLE_LIBELF_PROBE
 	$(SED) 's/^libelf = dependency('"'"'libelf'"'"'.*/libelf = []/' $(@D)/gio/meson.build
 	$(SED) 's/^if libelf.found()/if false/' $(@D)/gio/meson.build

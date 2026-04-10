@@ -32,6 +32,7 @@ make BOARD=imx6ull_100ask_pro vars
 make BOARD=imx6ull_100ask_pro app APP=app_demo
 make BOARD=imx6ull_100ask_pro linux
 make BOARD=imx6ull_100ask_pro uboot
+make BOARD=imx6ull_100ask_pro busybox
 make BOARD=imx6ull_100ask_pro buildroot
 ```
 
@@ -41,6 +42,7 @@ make BOARD=imx6ull_100ask_pro buildroot
 ./build/build.sh imx6ull_100ask_pro app:app_demo
 ./build/build.sh imx6ull_100ask_pro linux
 ./build/build.sh imx6ull_100ask_pro uboot
+./build/build.sh imx6ull_100ask_pro busybox
 ./build/build.sh imx6ull_100ask_pro buildroot
 ```
 
@@ -65,6 +67,11 @@ make BOARD=imx6ull_100ask_pro buildroot
 
 - 通过 Buildroot 输出树重编 U-Boot
 - 产物仍放在 Buildroot 的 `images/` 目录
+
+`busybox`
+
+- 通过 Buildroot 输出树执行 `busybox-rebuild`
+- 适合在已有输出树上单独重编 BusyBox，而不触发整套镜像全量重建
 
 `buildroot`
 
@@ -152,9 +159,18 @@ make BOARD=imx6ull_100ask_pro uboot
 
 这两个目标默认是基于现有 Buildroot 输出树做重编，不会自动先清空。
 
+如果只是想单独重编 BusyBox：
+
+```bash
+make BOARD=imx6ull_100ask_pro busybox
+```
+
+它同样基于现有 Buildroot 输出树执行，不会自动先清空。
+
 ## Current Notes
 
 - `make` 是主入口，shell 脚本是兼容层
 - `linux` 和 `uboot` 当前仍通过 Buildroot 输出树构建，不是单独裸编
+- `busybox` 当前通过 Buildroot 输出树执行 `busybox-rebuild`
 - 机型功能宏当前已经接到 app 编译和 Buildroot 额外配置片段
 - 后续还会继续把 `MODEL_FEATURE_*` 接到 Buildroot fragment、overlay 和驱动选择
