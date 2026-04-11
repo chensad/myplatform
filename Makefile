@@ -37,6 +37,11 @@ DOWNLOAD_DIR := $(if $(wildcard $(CACHED_DOWNLOAD_DIR)),$(CACHED_DOWNLOAD_DIR),$
 
 APP_DIR := $(ROOT_DIR)apps/public/$(APP)
 APP_CPPFLAGS := $(MODEL_APP_CPPFLAGS)
+APP_TOOLCHAIN_HOST_DIR := $(BUILDROOT_OUTPUT_DIR)/$(MODEL_TOOLCHAIN_HOST_SUBDIR)
+APP_TOOLCHAIN_BINDIR := $(BUILDROOT_OUTPUT_DIR)/$(MODEL_TOOLCHAIN_BINDIR_SUBDIR)
+APP_TOOLCHAIN_SYSROOT := $(BUILDROOT_OUTPUT_DIR)/$(MODEL_TOOLCHAIN_SYSROOT_SUBDIR)
+APP_CROSS_COMPILE := $(APP_TOOLCHAIN_BINDIR)/$(MODEL_TOOLCHAIN_PREFIX)-
+APP_TARGET_DIR := $(BUILDROOT_OUTPUT_DIR)/target
 endif
 
 .PHONY: help vars all app buildroot linux uboot busybox prepare-buildroot-tree prepare-buildroot-defconfig
@@ -71,13 +76,26 @@ vars:
 		'UBOOT_SRC=$(UBOOT_SRC)' \
 		'BUILDROOT_OUTPUT_DIR=$(BUILDROOT_OUTPUT_DIR)' \
 		'APP=$(APP)' \
-		'APP_CPPFLAGS=$(APP_CPPFLAGS)'
+		'APP_CPPFLAGS=$(APP_CPPFLAGS)' \
+		'APP_CROSS_COMPILE=$(APP_CROSS_COMPILE)' \
+		'APP_TOOLCHAIN_SYSROOT=$(APP_TOOLCHAIN_SYSROOT)'
 
-all: app buildroot
+all: buildroot app
 
 app:
 	@test -d "$(APP_DIR)" || { echo "app not found: $(APP)" >&2; exit 1; }
-	$(MAKE) -C "$(APP_DIR)" CPPFLAGS="$(APP_CPPFLAGS)"
+	@test -x "$(APP_CROSS_COMPILE)gcc" || { \
+		echo "missing cross compiler: $(APP_CROSS_COMPILE)gcc" >&2; \
+		echo "build the Buildroot toolchain first, e.g. make BOARD=$(BOARD) buildroot" >&2; \
+		exit 1; \
+	}
+	$(MAKE) -C "$(APP_DIR)" \
+		CROSS_COMPILE="$(APP_CROSS_COMPILE)" \
+		HOST_DIR="$(APP_TOOLCHAIN_HOST_DIR)" \
+		STAGING_DIR="$(APP_TOOLCHAIN_SYSROOT)" \
+		SYSROOT="$(APP_TOOLCHAIN_SYSROOT)" \
+		TARGET_DIR="$(APP_TARGET_DIR)" \
+		CPPFLAGS="$(APP_CPPFLAGS)"
 
 prepare-buildroot-tree:
 	@mkdir -p "$(BUILDROOT_OUTPUT_DIR)" "$(DOWNLOAD_DIR)" "$(BUILD_LOGS_DIR)" "$(BUILD_CCACHE_DIR)"

@@ -30,8 +30,8 @@ git clone <your-myplatform-repo>
 cd myplatform
 git submodule update --init --recursive
 ./tools/bootstrap.sh imx6ull_100ask_pro
-make BOARD=imx6ull_100ask_pro app APP=app_demo
 make BOARD=imx6ull_100ask_pro buildroot
+make BOARD=imx6ull_100ask_pro app APP=app_demo
 ```
 
 如果要用容器环境，参考：
@@ -71,11 +71,16 @@ make BOARD=imx6ull_100ask_pro buildroot
 如果 app 需要机型宏，统一从 `platform/boards/<board>/model.mk` 注入。当前示例使用：
 
 - `MODEL_APP_CPPFLAGS`
+- `MODEL_TOOLCHAIN_PREFIX`
+- `MODEL_TOOLCHAIN_BINDIR_SUBDIR`
+- `MODEL_TOOLCHAIN_SYSROOT_SUBDIR`
 
 这些宏会：
 
 - 在单独执行 `make BOARD=<board> app APP=<app>` 时传给 app 本身
-- 在 Buildroot 打包 app 时通过 `MYPLATFORM_APP_CPPFLAGS` 传给 app 的 Buildroot package
+- 在 Buildroot 打包 app 时通过 `MYPLATFORM_APP_CPPFLAGS` 和 `TARGET_CROSS` 传给 app 的 Buildroot package
+
+现在单独 `make app` 和 Buildroot 内部打包 app 走的是同一套交叉工具链前缀约定。新增板子时，只需要在对应 `model.mk` 里补齐工具链前缀和相对路径，不需要在 app Makefile 里再写板级判断。
 
 ## How To Modify Drivers
 
@@ -160,6 +165,7 @@ make BOARD=imx6ull_100ask_pro buildroot
 - 选择 third_party 源码路径
 - 定义机型功能宏
 - 给 app 注入 `CPPFLAGS`
+- 定义 app 交叉工具链前缀和相对路径
 - 追加 Buildroot 配置片段
 
 ## Environment Setup

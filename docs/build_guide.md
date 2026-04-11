@@ -11,6 +11,7 @@ cd /path/to/myplatform
 git submodule update --init --recursive
 ./tools/bootstrap.sh imx6ull_100ask_pro
 ./tools/fetch.sh
+make BOARD=imx6ull_100ask_pro buildroot
 ```
 
 如果要用 Docker 环境，先看：
@@ -51,12 +52,13 @@ make BOARD=imx6ull_100ask_pro buildroot
 `vars`
 
 - 打印当前板级和机型配置解析结果
-- 用来确认 third_party 路径、输出目录、app 宏是否正确
+- 用来确认 third_party 路径、输出目录、app 宏和交叉工具链路径是否正确
 
 `app`
 
 - 只编一个用户态 app
-- 会把 `model.mk` 中的 `MODEL_APP_CPPFLAGS` 传给 app 的 Makefile
+- 会把 `model.mk` 中的 `MODEL_APP_CPPFLAGS` 和交叉工具链配置传给 app 的 Makefile
+- 首次单独编 app 前，需要先准备好对应板子的 Buildroot 交叉工具链
 
 `linux`
 
@@ -101,11 +103,11 @@ Buildroot 输出目录：
 - `rootfs.tar`
 - `100ask-imx6ull-pro-512d-systemv-v1.img`
 
-如果只编 app，以 `app_demo` 为例，当前产物在 app 自己目录下：
+如果只编 app，以 `app_demo` 为例，当前产物仍在 app 自己目录下：
 
 - `apps/public/app_demo/app_demo`
 
-当前还没有把单独编 app 的产物统一收口到 `build/out/`。
+单独 `make app` 现在会直接复用机型配置里声明的 Buildroot 交叉工具链，产物名称和 Buildroot 包构建保持一致。
 
 ## Config Source
 
@@ -128,9 +130,10 @@ Buildroot 输出目录：
 - third_party 源码选择
 - 机型功能开关
 - app 宏定义
+- app 交叉工具链前缀和相对路径
 - 追加 Buildroot 配置片段
 
-如果要改机型宏、切换 third_party 源码、控制 app 编译宏，优先改 `model.mk`。
+如果要改机型宏、切换 third_party 源码、控制 app 编译宏或切换交叉工具链前缀，优先改 `model.mk`。
 
 ## Rebuild And Clean
 
@@ -141,6 +144,12 @@ Buildroot 输出目录：
 ```bash
 make -C apps/public/app_demo clean
 make BOARD=imx6ull_100ask_pro app APP=app_demo
+```
+
+如果还没准备好交叉工具链，先执行一次：
+
+```bash
+make BOARD=imx6ull_100ask_pro buildroot
 ```
 
 彻底清 Buildroot 输出树：
