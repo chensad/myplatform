@@ -16,3 +16,4 @@ CACHED_DOWNLOAD_DIR := $(abspath $(ROOT_DIR)../.cache/100ask-buildroot-dl)
 BOARD_BUILDROOT_DEFCONFIG := $(BOARD_DIR)/buildroot/defconfig
 BOARD_BUILDROOT_EXTERNAL_DIR := $(BOARD_DIR)/buildroot/external
 BOARD_BUILDROOT_BOARD_DIR := $(BOARD_DIR)/buildroot/board
+BOARD_LINUX_DTS_DIR := $(BOARD_DIR)/linux/dts

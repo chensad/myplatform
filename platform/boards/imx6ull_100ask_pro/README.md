@@ -14,7 +14,7 @@
 - `board.mk` Makefile 侧的板级路径真源
 - `model.mk` 机型功能、third_party 选择和 app 宏真源
 - `scripts/` 板级兼容脚本
-- `linux/` 内核 defconfig、patch、fragment
+- `linux/` 内核 defconfig、DTS、patch、fragment
 - `uboot/` U-Boot defconfig、patch、fragment
 - `buildroot/` Buildroot defconfig、board 资源、external 层
 - `drivers/` 板级驱动补丁和外置模块
@@ -41,9 +41,20 @@ make BOARD=imx6ull_100ask_pro buildroot
 `model.mk` 当前控制：
 
 - `MODEL_THIRD_PARTY_*`：决定实际使用的 Buildroot/Linux/U-Boot 源码目录
+- `MODEL_KERNEL_DTS_*`：决定板级 DTS 真源和编译前替换规则
 - `MODEL_FEATURE_*`：机型功能开关
 - `MODEL_APP_CPPFLAGS`：注入 app 的 `CONFIG_*` 宏
 - `MODEL_BUILDROOT_EXTRA_CONFIGS`：追加 Buildroot 配置片段
+
+当前板级 DTS 真源：
+
+- `platform/boards/imx6ull_100ask_pro/linux/dts/100ask_imx6ull-14x14.dts`
+
+当前做法：
+
+- 板级 DTS 真源只维护在 `platform/boards/imx6ull_100ask_pro/linux/dts/`
+- 根目录 `Makefile` 会把 `MODEL_KERNEL_DTS_*` 生成到 Buildroot 合并后的 defconfig
+- Buildroot 通过 `BR2_LINUX_KERNEL_CUSTOM_DTS_PATH` 使用板级 DTS，不直接修改 `third_party/linux` 工作树
 
 迁移来源：
 
