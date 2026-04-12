@@ -24,7 +24,8 @@ endif
 include $(MODEL_CONFIG)
 
 OUTPUT_TAG ?= $(MODEL_OUTPUT_TAG)
-APP ?= $(MODEL_DEFAULT_APP)
+PUBLIC_APPS ?= $(MODEL_PUBLIC_APPS)
+PRIVATE_APPS ?= $(MODEL_PRIVATE_APPS)
 
 BUILDROOT_SRC := $(if $(wildcard $(MODEL_THIRD_PARTY_BUILDROOT_DIR)/Makefile),$(MODEL_THIRD_PARTY_BUILDROOT_DIR),$(LEGACY_BUILDROOT_DIR))
 KERNEL_SRC := $(if $(wildcard $(MODEL_THIRD_PARTY_KERNEL_DIR)),$(MODEL_THIRD_PARTY_KERNEL_DIR),$(LEGACY_KERNEL_DIR))
@@ -35,7 +36,8 @@ BUILDROOT_OUTPUT_DIR := $(BUILD_OUTPUT_DIR)/buildroot
 BUILDROOT_MERGED_DEFCONFIG := $(BUILDROOT_OUTPUT_DIR)/merged_defconfig
 DOWNLOAD_DIR := $(if $(wildcard $(CACHED_DOWNLOAD_DIR)),$(CACHED_DOWNLOAD_DIR),$(BUILD_DOWNLOADS_DIR))
 
-APP_DIR := $(ROOT_DIR)apps/public/$(APP)
+PUBLIC_APPS_DIR := $(ROOT_DIR)apps/public
+PRIVATE_APPS_DIR := $(ROOT_DIR)apps/private
 APP_CPPFLAGS := $(MODEL_APP_CPPFLAGS)
 APP_TOOLCHAIN_HOST_DIR := $(BUILDROOT_OUTPUT_DIR)/$(MODEL_TOOLCHAIN_HOST_SUBDIR)
 APP_TOOLCHAIN_BINDIR := $(BUILDROOT_OUTPUT_DIR)/$(MODEL_TOOLCHAIN_BINDIR_SUBDIR)
@@ -50,10 +52,11 @@ help:
 	@printf '%s\n' \
 		'usage:' \
 		'  make BOARD=<board> [OUTPUT_TAG=<tag>] <target>' \
+		'  make BOARD=<board> [OUTPUT_TAG=<tag>] app [PUBLIC_APPS="<apps>"] [PRIVATE_APPS="<apps>"]' \
 		'' \
 		'targets:' \
-		'  all        build default app and Buildroot image' \
-		'  app        build one app with board/model macros' \
+		'  all        build configured public/private apps and Buildroot image' \
+		'  app        build configured public/private apps with board/model macros' \
 		'  buildroot  build complete Buildroot image' \
 		'  linux      rebuild Linux through Buildroot' \
 		'  uboot      rebuild U-Boot through Buildroot' \
@@ -62,7 +65,9 @@ help:
 		'' \
 		'examples:' \
 		'  make BOARD=imx6ull_100ask_pro buildroot' \
-		'  make BOARD=imx6ull_100ask_pro app APP=app_demo' \
+		'  make BOARD=imx6ull_100ask_pro app' \
+		'  make BOARD=imx6ull_100ask_pro app PUBLIC_APPS="app_demo"' \
+		'  make BOARD=imx6ull_100ask_pro app PRIVATE_APPS="detect_gps"' \
 		'  make BOARD=imx6ull_100ask_pro linux' \
 		'  make BOARD=imx6ull_100ask_pro busybox'
 
@@ -75,7 +80,10 @@ vars:
 		'KERNEL_SRC=$(KERNEL_SRC)' \
 		'UBOOT_SRC=$(UBOOT_SRC)' \
 		'BUILDROOT_OUTPUT_DIR=$(BUILDROOT_OUTPUT_DIR)' \
-		'APP=$(APP)' \
+		'PUBLIC_APPS=$(PUBLIC_APPS)' \
+		'PRIVATE_APPS=$(PRIVATE_APPS)' \
+		'PUBLIC_APPS_DIR=$(PUBLIC_APPS_DIR)' \
+		'PRIVATE_APPS_DIR=$(PRIVATE_APPS_DIR)' \
 		'APP_CPPFLAGS=$(APP_CPPFLAGS)' \
 		'APP_CROSS_COMPILE=$(APP_CROSS_COMPILE)' \
 		'APP_TOOLCHAIN_SYSROOT=$(APP_TOOLCHAIN_SYSROOT)' \
@@ -86,13 +94,21 @@ vars:
 all: buildroot app
 
 app:
-	@test -d "$(APP_DIR)" || { echo "app not found: $(APP)" >&2; exit 1; }
 	@test -x "$(APP_CROSS_COMPILE)gcc" || { \
 		echo "missing cross compiler: $(APP_CROSS_COMPILE)gcc" >&2; \
 		echo "build the Buildroot toolchain first, e.g. make BOARD=$(BOARD) buildroot" >&2; \
 		exit 1; \
 	}
-	$(MAKE) -C "$(APP_DIR)" \
+	$(MAKE) -C "$(PUBLIC_APPS_DIR)" \
+		APPS="$(PUBLIC_APPS)" \
+		CROSS_COMPILE="$(APP_CROSS_COMPILE)" \
+		HOST_DIR="$(APP_TOOLCHAIN_HOST_DIR)" \
+		STAGING_DIR="$(APP_TOOLCHAIN_SYSROOT)" \
+		SYSROOT="$(APP_TOOLCHAIN_SYSROOT)" \
+		TARGET_DIR="$(APP_TARGET_DIR)" \
+		CPPFLAGS="$(APP_CPPFLAGS)"
+	$(MAKE) -C "$(PRIVATE_APPS_DIR)" \
+		APPS="$(PRIVATE_APPS)" \
 		CROSS_COMPILE="$(APP_CROSS_COMPILE)" \
 		HOST_DIR="$(APP_TOOLCHAIN_HOST_DIR)" \
 		STAGING_DIR="$(APP_TOOLCHAIN_SYSROOT)" \

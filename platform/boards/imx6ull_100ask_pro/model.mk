@@ -1,6 +1,7 @@
 MODEL_NAME := imx6ull_100ask_pro
 MODEL_OUTPUT_TAG := demo_console
-MODEL_DEFAULT_APP := app_demo
+MODEL_PUBLIC_APPS := app_demo
+MODEL_PRIVATE_APPS := detect_gps
 
 MODEL_THIRD_PARTY_BUILDROOT_DIR := $(ROOT_DIR)third_party/buildroot/buildroot-2020.02
 MODEL_THIRD_PARTY_KERNEL_DIR := $(ROOT_DIR)third_party/linux/imx-linux4.9.88
