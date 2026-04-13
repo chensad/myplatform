@@ -46,7 +46,9 @@ make BOARD=imx6ull_100ask_pro buildroot
 - 单独编 app：
 
 ```bash
-make BOARD=imx6ull_100ask_pro app APP=app_demo
+make BOARD=imx6ull_100ask_pro app
+make BOARD=imx6ull_100ask_pro app PUBLIC_APPS="app_demo"
+make BOARD=imx6ull_100ask_pro app PRIVATE_APPS="detect_gps"
 ```
 
 - 单独重编 Linux：
@@ -69,6 +71,7 @@ make BOARD=imx6ull_100ask_pro linux
 
 - [build_guide.md](/home/compile/workstation/project/codex/myplatform/docs/build_guide.md)
 - [README_PLATFORM.md](/home/compile/workstation/project/codex/myplatform/README_PLATFORM.md)
+- [imx6ull_100ask_pro_uart_learning_notes.md](/home/compile/workstation/project/codex/myplatform/docs/boards/imx6ull_100ask_pro_uart_learning_notes.md)
 
 ## 资料与源码入口
 

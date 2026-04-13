@@ -13,3 +13,6 @@
 当前已补充：
 
 - `imx6ull_100ask_pro_driver_learning_plan.md`
+- `imx6ull_100ask_pro_i2c_learning_notes.md`
+- `imx6ull_100ask_pro_pinctrl_learning_notes.md`
+- `imx6ull_100ask_pro_uart_learning_notes.md`

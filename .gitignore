@@ -10,3 +10,9 @@ build/ccache/*
 !build/ccache/README.md
 
 apps/public/app_demo/app_demo
+apps/public/app_demo/src/*.o
+apps/private/*/*.o
+apps/private/ap3216c_tool/ap3216c_tool
+apps/private/detect_gps/detect_gps
+apps/private/*/*:Zone.Identifier
+third_party/buildroot/buildroot-2020.02/build/
