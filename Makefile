@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-KNOWN_COMPONENTS := all app buildroot linux uboot busybox vars help
+KNOWN_COMPONENTS := all app app-clean buildroot linux uboot busybox vars help
 
 ifeq ($(filter help,$(MAKECMDGOALS)),)
 ifndef BOARD
@@ -46,7 +46,7 @@ APP_CROSS_COMPILE := $(APP_TOOLCHAIN_BINDIR)/$(MODEL_TOOLCHAIN_PREFIX)-
 APP_TARGET_DIR := $(BUILDROOT_OUTPUT_DIR)/target
 endif
 
-.PHONY: help vars all app buildroot linux uboot busybox prepare-buildroot-tree prepare-buildroot-defconfig
+.PHONY: help vars all app app-clean buildroot linux uboot busybox prepare-buildroot-tree prepare-buildroot-defconfig
 
 help:
 	@printf '%s\n' \
@@ -57,6 +57,7 @@ help:
 		'targets:' \
 		'  all        build configured public/private apps and Buildroot image' \
 		'  app        build configured public/private apps with board/model macros' \
+		'  app-clean  clean configured public/private app outputs' \
 		'  buildroot  build complete Buildroot image' \
 		'  linux      rebuild Linux through Buildroot' \
 		'  uboot      rebuild U-Boot through Buildroot' \
@@ -66,6 +67,7 @@ help:
 		'examples:' \
 		'  make BOARD=imx6ull_100ask_pro buildroot' \
 		'  make BOARD=imx6ull_100ask_pro app' \
+		'  make BOARD=imx6ull_100ask_pro app-clean' \
 		'  make BOARD=imx6ull_100ask_pro app PUBLIC_APPS="app_demo"' \
 		'  make BOARD=imx6ull_100ask_pro app PRIVATE_APPS="detect_gps"' \
 		'  make BOARD=imx6ull_100ask_pro linux' \
@@ -115,6 +117,14 @@ app:
 		SYSROOT="$(APP_TOOLCHAIN_SYSROOT)" \
 		TARGET_DIR="$(APP_TARGET_DIR)" \
 		CPPFLAGS="$(APP_CPPFLAGS)"
+
+app-clean:
+	$(MAKE) -C "$(PUBLIC_APPS_DIR)" \
+		clean \
+		APPS="$(PUBLIC_APPS)"
+	$(MAKE) -C "$(PRIVATE_APPS_DIR)" \
+		clean \
+		APPS="$(PRIVATE_APPS)"
 
 prepare-buildroot-tree:
 	@mkdir -p "$(BUILDROOT_OUTPUT_DIR)" "$(DOWNLOAD_DIR)" "$(BUILD_LOGS_DIR)" "$(BUILD_CCACHE_DIR)"
