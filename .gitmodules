@@ -10,3 +10,7 @@
 	path = third_party/linux/imx-linux4.9.88
 	url = https://github.com/chensad/mylinux.git
 	branch = vendor/100ask-base
+[submodule "third_party/yocto/yocto_5.10.72"]
+	path = third_party/yocto/yocto_5.10.72
+	url = https://github.com/chensad/yocto_5.10.72.git
+	branch = main
