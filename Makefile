@@ -2,11 +2,11 @@ SHELL := /bin/bash
 
 ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
-KNOWN_COMPONENTS := all app app-clean buildroot linux uboot busybox vars help
+NEEDS_BOARD_CONTEXT := $(if $(BOARD),1,$(if $(strip $(filter-out help,$(MAKECMDGOALS))),1,))
 
-ifeq ($(filter help,$(MAKECMDGOALS)),)
+ifeq ($(NEEDS_BOARD_CONTEXT),1)
 ifndef BOARD
-$(error BOARD is required. Example: make BOARD=imx6ull_100ask_pro buildroot)
+$(error BOARD is required. Example: make BOARD=imx6ull_100ask_pro image)
 endif
 
 BOARD_DIR := $(ROOT_DIR)platform/boards/$(BOARD)
@@ -27,78 +27,104 @@ OUTPUT_TAG ?= $(MODEL_OUTPUT_TAG)
 PUBLIC_APPS ?= $(MODEL_PUBLIC_APPS)
 PRIVATE_APPS ?= $(MODEL_PRIVATE_APPS)
 
-BUILDROOT_SRC := $(if $(wildcard $(MODEL_THIRD_PARTY_BUILDROOT_DIR)/Makefile),$(MODEL_THIRD_PARTY_BUILDROOT_DIR),$(LEGACY_BUILDROOT_DIR))
-KERNEL_SRC := $(if $(wildcard $(MODEL_THIRD_PARTY_KERNEL_DIR)),$(MODEL_THIRD_PARTY_KERNEL_DIR),$(LEGACY_KERNEL_DIR))
-UBOOT_SRC := $(if $(wildcard $(MODEL_THIRD_PARTY_UBOOT_DIR)),$(MODEL_THIRD_PARTY_UBOOT_DIR),$(LEGACY_UBOOT_DIR))
-
-BUILD_OUTPUT_DIR := $(BUILD_OUTPUT_BASE)/$(BOARD_NAME)/$(OUTPUT_TAG)
-BUILDROOT_OUTPUT_DIR := $(BUILD_OUTPUT_DIR)/buildroot
-BUILDROOT_MERGED_DEFCONFIG := $(BUILDROOT_OUTPUT_DIR)/merged_defconfig
-DOWNLOAD_DIR := $(if $(wildcard $(CACHED_DOWNLOAD_DIR)),$(CACHED_DOWNLOAD_DIR),$(BUILD_DOWNLOADS_DIR))
+BUILD_OUTPUT_BASE ?= $(ROOT_DIR)build/out
+BUILD_DOWNLOADS_DIR ?= $(ROOT_DIR)build/downloads
+BUILD_CCACHE_DIR ?= $(ROOT_DIR)build/ccache
+BUILD_LOGS_DIR ?= $(ROOT_DIR)build/logs
+BUILD_SSTATE_DIR ?= $(ROOT_DIR)build/sstate-cache
 
 PUBLIC_APPS_DIR := $(ROOT_DIR)apps/public
 PRIVATE_APPS_DIR := $(ROOT_DIR)apps/private
-APP_CPPFLAGS := $(MODEL_APP_CPPFLAGS)
-APP_TOOLCHAIN_HOST_DIR := $(BUILDROOT_OUTPUT_DIR)/$(MODEL_TOOLCHAIN_HOST_SUBDIR)
-APP_TOOLCHAIN_BINDIR := $(BUILDROOT_OUTPUT_DIR)/$(MODEL_TOOLCHAIN_BINDIR_SUBDIR)
-APP_TOOLCHAIN_SYSROOT := $(BUILDROOT_OUTPUT_DIR)/$(MODEL_TOOLCHAIN_SYSROOT_SUBDIR)
-APP_CROSS_COMPILE := $(APP_TOOLCHAIN_BINDIR)/$(MODEL_TOOLCHAIN_PREFIX)-
-APP_TARGET_DIR := $(BUILDROOT_OUTPUT_DIR)/target
+
+BUILD_BACKEND ?= $(if $(MODEL_BUILD_BACKEND),$(MODEL_BUILD_BACKEND),$(if $(BOARD_BUILD_BACKEND),$(BOARD_BUILD_BACKEND),buildroot))
+BACKEND_MK := $(ROOT_DIR)platform/common/mk/backend-$(BUILD_BACKEND).mk
+ifeq ($(wildcard $(BACKEND_MK)),)
+$(error Unsupported build backend '$(BUILD_BACKEND)'; missing $(BACKEND_MK))
 endif
 
-.PHONY: help vars all app app-clean buildroot linux uboot busybox prepare-buildroot-tree prepare-buildroot-defconfig
+APP_CPPFLAGS ?= $(strip $(MODEL_APP_CPPFLAGS) $(BOARD_APP_CPPFLAGS))
+APP_TOOLCHAIN_HINT ?= configure APP_CROSS_COMPILE and APP_TOOLCHAIN_SYSROOT in the model or on the command line.
+
+include $(BACKEND_MK)
+
+ifneq ($(strip $(MODEL_APP_CROSS_COMPILE)),)
+APP_CROSS_COMPILE := $(MODEL_APP_CROSS_COMPILE)
+endif
+ifneq ($(strip $(MODEL_APP_TOOLCHAIN_HOST_DIR)),)
+APP_TOOLCHAIN_HOST_DIR := $(MODEL_APP_TOOLCHAIN_HOST_DIR)
+endif
+ifneq ($(strip $(MODEL_APP_TOOLCHAIN_SYSROOT)),)
+APP_TOOLCHAIN_SYSROOT := $(MODEL_APP_TOOLCHAIN_SYSROOT)
+endif
+ifneq ($(strip $(MODEL_APP_TARGET_DIR)),)
+APP_TARGET_DIR := $(MODEL_APP_TARGET_DIR)
+endif
+
+IMAGE_TARGET ?= image
+ALL_TARGETS ?= $(IMAGE_TARGET) app
+endif
+
+.PHONY: help vars all image app app-clean
 
 help:
 	@printf '%s\n' \
 		'usage:' \
 		'  make BOARD=<board> [OUTPUT_TAG=<tag>] <target>' \
-		'  make BOARD=<board> [OUTPUT_TAG=<tag>] app [PUBLIC_APPS="<apps>"] [PRIVATE_APPS="<apps>"]' \
+		'  make BOARD=<board> app [PUBLIC_APPS="<apps>"] [PRIVATE_APPS="<apps>"]' \
 		'' \
-		'targets:' \
-		'  all        build configured public/private apps and Buildroot image' \
-		'  app        build configured public/private apps with board/model macros' \
+		'common targets:' \
+		'  all        build the board default target set' \
+		'  image      build the active backend image target' \
+		'  app        build configured public/private apps' \
 		'  app-clean  clean configured public/private app outputs' \
-		'  buildroot  build complete Buildroot image' \
-		'  linux      rebuild Linux through Buildroot' \
-		'  uboot      rebuild U-Boot through Buildroot' \
-		'  busybox    rebuild BusyBox through Buildroot' \
-		'  vars       print resolved board/model variables' \
+		'  vars       print resolved board/model/backend variables' \
+		'  help       show this help text' \
+		'' \
+		'notes:' \
+		'  build backend is selected by MODEL_BUILD_BACKEND or BOARD_BUILD_BACKEND' \
+		'  board directories do not need to share the same internal layout' \
 		'' \
 		'examples:' \
+		'  make BOARD=imx6ull_100ask_pro image' \
 		'  make BOARD=imx6ull_100ask_pro buildroot' \
-		'  make BOARD=imx6ull_100ask_pro app' \
-		'  make BOARD=imx6ull_100ask_pro app-clean' \
-		'  make BOARD=imx6ull_100ask_pro app PUBLIC_APPS="app_demo"' \
-		'  make BOARD=imx6ull_100ask_pro app PRIVATE_APPS="detect_gps"' \
-		'  make BOARD=imx6ull_100ask_pro linux' \
-		'  make BOARD=imx6ull_100ask_pro busybox'
+		'  make BOARD=myir_imx8m_plus yocto' \
+		'  make BOARD=myir_imx8m_plus sdk'
+ifeq ($(NEEDS_BOARD_CONTEXT),1)
+	@$(MAKE) --no-print-directory BOARD="$(BOARD)" MODEL_CONFIG="$(MODEL_CONFIG)" backend-help
+endif
 
 vars:
 	@printf '%s\n' \
+		'BOARD=$(BOARD)' \
 		'BOARD_NAME=$(BOARD_NAME)' \
 		'MODEL_NAME=$(MODEL_NAME)' \
+		'MODEL_CONFIG=$(MODEL_CONFIG)' \
 		'OUTPUT_TAG=$(OUTPUT_TAG)' \
-		'BUILDROOT_SRC=$(BUILDROOT_SRC)' \
-		'KERNEL_SRC=$(KERNEL_SRC)' \
-		'UBOOT_SRC=$(UBOOT_SRC)' \
-		'BUILDROOT_OUTPUT_DIR=$(BUILDROOT_OUTPUT_DIR)' \
+		'BUILD_BACKEND=$(BUILD_BACKEND)' \
 		'PUBLIC_APPS=$(PUBLIC_APPS)' \
 		'PRIVATE_APPS=$(PRIVATE_APPS)' \
 		'PUBLIC_APPS_DIR=$(PUBLIC_APPS_DIR)' \
 		'PRIVATE_APPS_DIR=$(PRIVATE_APPS_DIR)' \
 		'APP_CPPFLAGS=$(APP_CPPFLAGS)' \
 		'APP_CROSS_COMPILE=$(APP_CROSS_COMPILE)' \
+		'APP_TOOLCHAIN_HOST_DIR=$(APP_TOOLCHAIN_HOST_DIR)' \
 		'APP_TOOLCHAIN_SYSROOT=$(APP_TOOLCHAIN_SYSROOT)' \
-		'MODEL_KERNEL_DTS_NAME=$(MODEL_KERNEL_DTS_NAME)' \
-		'MODEL_KERNEL_INTREE_DTS_NAMES=$(MODEL_KERNEL_INTREE_DTS_NAMES)' \
-		'MODEL_KERNEL_CUSTOM_DTS_PATHS=$(MODEL_KERNEL_CUSTOM_DTS_PATHS)'
+		'APP_TARGET_DIR=$(APP_TARGET_DIR)'
+	@$(MAKE) --no-print-directory BOARD="$(BOARD)" MODEL_CONFIG="$(MODEL_CONFIG)" backend-vars
 
-all: buildroot app
+all: $(ALL_TARGETS)
+
+image: $(IMAGE_TARGET)
 
 app:
+	@if [[ -z "$(APP_CROSS_COMPILE)" ]]; then \
+		echo "app toolchain is not configured for backend '$(BUILD_BACKEND)'" >&2; \
+		echo "$(APP_TOOLCHAIN_HINT)" >&2; \
+		exit 1; \
+	fi
 	@test -x "$(APP_CROSS_COMPILE)gcc" || { \
 		echo "missing cross compiler: $(APP_CROSS_COMPILE)gcc" >&2; \
-		echo "build the Buildroot toolchain first, e.g. make BOARD=$(BOARD) buildroot" >&2; \
+		echo "$(APP_TOOLCHAIN_HINT)" >&2; \
 		exit 1; \
 	}
 	$(MAKE) -C "$(PUBLIC_APPS_DIR)" \
@@ -119,104 +145,5 @@ app:
 		CPPFLAGS="$(APP_CPPFLAGS)"
 
 app-clean:
-	$(MAKE) -C "$(PUBLIC_APPS_DIR)" \
-		clean \
-		APPS="$(PUBLIC_APPS)"
-	$(MAKE) -C "$(PRIVATE_APPS_DIR)" \
-		clean \
-		APPS="$(PRIVATE_APPS)"
-
-prepare-buildroot-tree:
-	@mkdir -p "$(BUILDROOT_OUTPUT_DIR)" "$(DOWNLOAD_DIR)" "$(BUILD_LOGS_DIR)" "$(BUILD_CCACHE_DIR)"
-	@ln -snf "$(BOARD_BUILDROOT_BOARD_DIR)" "$(BUILDROOT_OUTPUT_DIR)/board"
-	@ln -snf "$(BOARD_BUILDROOT_BOARD_DIR)/local.mk" "$(BUILDROOT_OUTPUT_DIR)/local.mk"
-
-prepare-buildroot-defconfig: prepare-buildroot-tree
-	@/bin/bash -eu -c '\
-		emit_config() { \
-			local config_file="$$1"; \
-			local config_dir line; \
-			config_dir="$$(dirname "$$config_file")"; \
-			while IFS= read -r line || [[ -n "$$line" ]]; do \
-				if [[ "$$line" =~ ^#include[[:space:]]+\"([^\"]+)\"$$ ]]; then \
-					emit_config "$$config_dir/$${BASH_REMATCH[1]}"; \
-				else \
-					printf "%s\n" "$$line"; \
-				fi; \
-			done < "$$config_file"; \
-		}; \
-		emit_config "$(BOARD_BUILDROOT_DEFCONFIG)" > "$(BUILDROOT_MERGED_DEFCONFIG)"; \
-		for extra in $(MODEL_BUILDROOT_EXTRA_CONFIGS); do \
-			printf "\n" >> "$(BUILDROOT_MERGED_DEFCONFIG)"; \
-			cat "$$extra" >> "$(BUILDROOT_MERGED_DEFCONFIG)"; \
-		done; \
-		printf "\nBR2_LINUX_KERNEL_INTREE_DTS_NAME=\"%s\"\n" "$(MODEL_KERNEL_INTREE_DTS_NAMES)" >> "$(BUILDROOT_MERGED_DEFCONFIG)"; \
-		printf "BR2_LINUX_KERNEL_CUSTOM_DTS_PATH=\"%s\"\n" "$(MODEL_KERNEL_CUSTOM_DTS_PATHS)" >> "$(BUILDROOT_MERGED_DEFCONFIG)"'
-
-buildroot: prepare-buildroot-defconfig
-	$(MAKE) -C "$(BUILDROOT_SRC)" \
-		O="$(BUILDROOT_OUTPUT_DIR)" \
-		BR2_EXTERNAL="$(BOARD_BUILDROOT_EXTERNAL_DIR)" \
-		BR2_DEFCONFIG="$(BUILDROOT_MERGED_DEFCONFIG)" \
-		BR2_DL_DIR="$(DOWNLOAD_DIR)" \
-		defconfig
-	$(MAKE) -C "$(BUILDROOT_SRC)" \
-		O="$(BUILDROOT_OUTPUT_DIR)" \
-		BR2_EXTERNAL="$(BOARD_BUILDROOT_EXTERNAL_DIR)" \
-		BR2_DL_DIR="$(DOWNLOAD_DIR)" \
-		LINUX_OVERRIDE_SRCDIR="$(KERNEL_SRC)" \
-		LINUX_HEADERS_OVERRIDE_SRCDIR="$(KERNEL_SRC)" \
-		UBOOT_OVERRIDE_SRCDIR="$(UBOOT_SRC)" \
-		MYPLATFORM_APP_CPPFLAGS="$(APP_CPPFLAGS)" \
-		all
-
-linux: prepare-buildroot-defconfig
-	$(MAKE) -C "$(BUILDROOT_SRC)" \
-		O="$(BUILDROOT_OUTPUT_DIR)" \
-		BR2_EXTERNAL="$(BOARD_BUILDROOT_EXTERNAL_DIR)" \
-		BR2_DEFCONFIG="$(BUILDROOT_MERGED_DEFCONFIG)" \
-		BR2_DL_DIR="$(DOWNLOAD_DIR)" \
-		defconfig
-	$(MAKE) -C "$(BUILDROOT_SRC)" \
-		O="$(BUILDROOT_OUTPUT_DIR)" \
-		BR2_EXTERNAL="$(BOARD_BUILDROOT_EXTERNAL_DIR)" \
-		BR2_DL_DIR="$(DOWNLOAD_DIR)" \
-		LINUX_OVERRIDE_SRCDIR="$(KERNEL_SRC)" \
-		LINUX_HEADERS_OVERRIDE_SRCDIR="$(KERNEL_SRC)" \
-		UBOOT_OVERRIDE_SRCDIR="$(UBOOT_SRC)" \
-		MYPLATFORM_APP_CPPFLAGS="$(APP_CPPFLAGS)" \
-		linux-rebuild
-
-uboot: prepare-buildroot-defconfig
-	$(MAKE) -C "$(BUILDROOT_SRC)" \
-		O="$(BUILDROOT_OUTPUT_DIR)" \
-		BR2_EXTERNAL="$(BOARD_BUILDROOT_EXTERNAL_DIR)" \
-		BR2_DEFCONFIG="$(BUILDROOT_MERGED_DEFCONFIG)" \
-		BR2_DL_DIR="$(DOWNLOAD_DIR)" \
-		defconfig
-	$(MAKE) -C "$(BUILDROOT_SRC)" \
-		O="$(BUILDROOT_OUTPUT_DIR)" \
-		BR2_EXTERNAL="$(BOARD_BUILDROOT_EXTERNAL_DIR)" \
-		BR2_DL_DIR="$(DOWNLOAD_DIR)" \
-		LINUX_OVERRIDE_SRCDIR="$(KERNEL_SRC)" \
-		LINUX_HEADERS_OVERRIDE_SRCDIR="$(KERNEL_SRC)" \
-		UBOOT_OVERRIDE_SRCDIR="$(UBOOT_SRC)" \
-		MYPLATFORM_APP_CPPFLAGS="$(APP_CPPFLAGS)" \
-		uboot-rebuild
-
-busybox: prepare-buildroot-defconfig
-	$(MAKE) -C "$(BUILDROOT_SRC)" \
-		O="$(BUILDROOT_OUTPUT_DIR)" \
-		BR2_EXTERNAL="$(BOARD_BUILDROOT_EXTERNAL_DIR)" \
-		BR2_DEFCONFIG="$(BUILDROOT_MERGED_DEFCONFIG)" \
-		BR2_DL_DIR="$(DOWNLOAD_DIR)" \
-		defconfig
-	$(MAKE) -C "$(BUILDROOT_SRC)" \
-		O="$(BUILDROOT_OUTPUT_DIR)" \
-		BR2_EXTERNAL="$(BOARD_BUILDROOT_EXTERNAL_DIR)" \
-		BR2_DL_DIR="$(DOWNLOAD_DIR)" \
-		LINUX_OVERRIDE_SRCDIR="$(KERNEL_SRC)" \
-		LINUX_HEADERS_OVERRIDE_SRCDIR="$(KERNEL_SRC)" \
-		UBOOT_OVERRIDE_SRCDIR="$(UBOOT_SRC)" \
-		MYPLATFORM_APP_CPPFLAGS="$(APP_CPPFLAGS)" \
-		busybox-rebuild
+	$(MAKE) -C "$(PUBLIC_APPS_DIR)" clean APPS="$(PUBLIC_APPS)"
+	$(MAKE) -C "$(PRIVATE_APPS_DIR)" clean APPS="$(PRIVATE_APPS)"
