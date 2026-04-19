@@ -9,6 +9,7 @@
 - `myplatform/third_party/buildroot/buildroot-2020.02`
 - `myplatform/third_party/linux/imx-linux4.9.88`
 - `myplatform/third_party/uboot/imx-uboot2017.03`
+- `myplatform/third_party/yocto/yocto_5.10.72`
 
 `toolchain` 不建议做成子仓库，原因：
 
@@ -31,9 +32,14 @@ rm -rf third_party/buildroot/buildroot-2020.02 third_party/linux/imx-linux4.9.88
 git submodule add <buildroot_repo_url> third_party/buildroot/buildroot-2020.02
 git submodule add <linux_repo_url> third_party/linux/imx-linux4.9.88
 git submodule add <uboot_repo_url> third_party/uboot/imx-uboot2017.03
+git submodule add <yocto_repo_url> third_party/yocto/yocto_5.10.72
 git submodule update --init --recursive
 git commit -m "Add third_party source submodules"
 ```
+
+如果 `third_party/yocto/` 当前已经是一个独立 git 仓库，但 remote 误指向主仓库，
+不要直接在主仓库里把整个目录当普通文件提交。应该先在该目录内部修正远端，再由主仓库
+以子仓库方式接入。
 
 ## 新机器拉取方式
 
@@ -63,6 +69,7 @@ git submodule update --init --recursive
 - `third_party/buildroot/buildroot-2020.02`
 - `third_party/linux/imx-linux4.9.88`
 - `third_party/uboot/imx-uboot2017.03`
+- `third_party/yocto/yocto_5.10.72`
 
 如果这些目录不存在，才回退到旧 `100ask_imx6ull-sdk/`。
 
@@ -73,5 +80,6 @@ git submodule update --init --recursive
 - Buildroot 仓库：你确认过的 `buildroot-2020.02` 主线
 - Linux 仓库：你现在实际维护的 `imx-linux4.9.88`
 - U-Boot 仓库：你现在实际维护的 `imx-uboot2017.03`
+- Yocto 仓库：你现在实际维护的 `yocto_5.10.72`
 
 不要直接把 `100ask_imx6ull-sdk` 整仓作为一个子仓库挂进 `third_party`，否则还是回到旧的大杂烩结构。

@@ -1,0 +1,5 @@
+# Runtime on the target reports about 2.9 GiB usable memory via `free -h`,
+# which matches the MYIR 3 GiB DDR option. Keep the U-Boot DDR config explicit
+# instead of relying on the vendor machine default.
+UBOOT_CONFIG = "sd"
+UBOOT_CONFIG[sd] = "myd_jx8mp_defconfig,sdcard"

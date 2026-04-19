@@ -7,6 +7,7 @@ MODEL_THIRD_PARTY_YOCTO_DIR := $(ROOT_DIR)third_party/yocto/yocto_5.10.72
 MODEL_YOCTO_SETUP_SCRIPT := $(MODEL_THIRD_PARTY_YOCTO_DIR)/sources/meta-myir/tools/myir-setup-release.sh
 MODEL_YOCTO_MACHINE := myd-jx8mp
 MODEL_YOCTO_DISTRO := fsl-imx-xwayland
+MODEL_YOCTO_LOCAL_CONF_FRAGMENT := $(BOARD_DIR)/yocto/local.conf.fragment
 MODEL_YOCTO_IMAGE_TARGET := myir-image-full
 MODEL_YOCTO_SDK_TARGET := meta-toolchain
 MODEL_YOCTO_KERNEL_TARGET := virtual/kernel

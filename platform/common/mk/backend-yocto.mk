@@ -15,6 +15,7 @@ YOCTO_ARTIFACTS_DIR := $(YOCTO_BUILD_DIR_ABS)/tmp/deploy/images/$(YOCTO_MACHINE)
 YOCTO_SDK_OUTPUT_DIR := $(YOCTO_BUILD_DIR_ABS)/tmp/deploy/sdk
 YOCTO_DOWNLOADS_DIR := $(BUILD_DOWNLOADS_DIR)/yocto
 YOCTO_SSTATE_DIR := $(BUILD_SSTATE_DIR)/yocto
+YOCTO_LOCAL_CONF_FRAGMENT := $(MODEL_YOCTO_LOCAL_CONF_FRAGMENT)
 
 APP_TOOLCHAIN_HINT ?= generate and install a Yocto SDK, then pass APP_CROSS_COMPILE/APP_TOOLCHAIN_SYSROOT or define MODEL_APP_* variables.
 
@@ -44,7 +45,8 @@ backend-vars:
 		'YOCTO_BUILD_DIR_REL=$(YOCTO_BUILD_DIR_REL)' \
 		'YOCTO_ARTIFACTS_DIR=$(YOCTO_ARTIFACTS_DIR)' \
 		'YOCTO_DOWNLOADS_DIR=$(YOCTO_DOWNLOADS_DIR)' \
-		'YOCTO_SSTATE_DIR=$(YOCTO_SSTATE_DIR)'
+		'YOCTO_SSTATE_DIR=$(YOCTO_SSTATE_DIR)' \
+		'YOCTO_LOCAL_CONF_FRAGMENT=$(YOCTO_LOCAL_CONF_FRAGMENT)'
 
 prepare-yocto-env:
 	@mkdir -p "$(YOCTO_BUILD_DIR_ABS)" "$(YOCTO_DOWNLOADS_DIR)" "$(YOCTO_SSTATE_DIR)"
@@ -62,7 +64,15 @@ prepare-yocto-env:
 			fi; \
 		}; \
 		set_conf_var DL_DIR "$(YOCTO_DOWNLOADS_DIR)"; \
-		set_conf_var SSTATE_DIR "$(YOCTO_SSTATE_DIR)"
+		set_conf_var SSTATE_DIR "$(YOCTO_SSTATE_DIR)"; \
+		if [[ -n "$(YOCTO_LOCAL_CONF_FRAGMENT)" && -f "$(YOCTO_LOCAL_CONF_FRAGMENT)" ]]; then \
+			sed -i '/^# MYPLATFORM managed begin$$/,/^# MYPLATFORM managed end$$/d' conf/local.conf; \
+			{ \
+				printf '%s\n' '# MYPLATFORM managed begin'; \
+				cat "$(YOCTO_LOCAL_CONF_FRAGMENT)"; \
+				printf '%s\n' '# MYPLATFORM managed end'; \
+			} >> conf/local.conf; \
+		fi
 
 yocto: prepare-yocto-env
 	@cd "$(YOCTO_SRC)" && \
