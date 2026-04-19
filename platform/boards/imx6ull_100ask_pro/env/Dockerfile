@@ -58,12 +58,17 @@ ARG USERNAME=compile
 ARG UID=1000
 ARG GID=1000
 
-RUN groupadd --gid "${GID}" "${USERNAME}" \
-    && useradd --uid "${UID}" --gid "${GID}" --create-home --shell /bin/bash "${USERNAME}" \
-    && mkdir -p /workspace \
-    && chown "${USERNAME}:${USERNAME}" /workspace
+RUN set -eux; \
+    if ! getent group "${GID}" >/dev/null; then \
+        groupadd --gid "${GID}" "${USERNAME}"; \
+    fi; \
+    if ! getent passwd "${UID}" >/dev/null; then \
+        useradd --uid "${UID}" --gid "${GID}" --create-home --shell /bin/bash "${USERNAME}"; \
+    fi; \
+    mkdir -p /workspace; \
+    chown "${UID}:${GID}" /workspace
 
-USER ${USERNAME}
+USER ${UID}:${GID}
 WORKDIR /workspace/myplatform
 
 CMD ["/bin/bash"]

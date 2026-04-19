@@ -37,6 +37,20 @@ docker build \
 docker compose build
 ```
 
+说明：
+
+- 当前 `Dockerfile` 会把容器运行用户对齐到宿主机传入的 `UID/GID`
+- `ubuntu:24.04` 基础镜像里默认已经存在 `uid=1000 gid=1000` 的 `ubuntu` 用户
+- 因此不能再无条件执行 `useradd --uid 1000`
+- 当前实现会先检查 `UID/GID` 是否已存在，如果已存在则直接复用，并通过
+  `USER ${UID}:${GID}` 进入容器
+
+如果你想确认基础镜像里是否已经占用了某个 UID，可以执行：
+
+```bash
+docker run --rm ubuntu:24.04 getent passwd 1000
+```
+
 ## WSL / Proxy Notes
 
 如果宿主机在 WSL 里，并且终端已经配置了：
