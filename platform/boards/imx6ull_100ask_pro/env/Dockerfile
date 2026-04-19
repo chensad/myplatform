@@ -1,34 +1,69 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Shanghai
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
     bc \
     bison \
     build-essential \
-    ccache \
     cmake \
     cpio \
+    curl \
+    device-tree-compiler \
+    diffutils \
     file \
     flex \
     gawk \
-    gcc-multilib \
+    gdb \
+    gettext \
     git \
-    libncurses5-dev \
+    gnupg \
+    grep \
+    libattr1 \
+    libelf-dev \
+    libglib2.0-dev \
+    libgmp-dev \
+    liblz4-tool \
+    libmpc-dev \
+    libmpfr-dev \
+    libncurses-dev \
+    libpixman-1-dev \
     libssl-dev \
-    locales \
+    login \
+    lzop \
+    mtd-utils \
+    net-tools \
+    nfs-common \
+    poppler-utils \
+    python-is-python3 \
+    python3 \
     python3 \
     python3-pip \
+    python3-venv \
+    qemu-system-arm \
     rsync \
-    sudo \
+    u-boot-tools \
     unzip \
     wget \
     xz-utils \
+    zstd \
+    7zip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN locale-gen en_US.UTF-8
+ARG USERNAME=compile
+ARG UID=1000
+ARG GID=1000
 
-ENV LANG=en_US.UTF-8
-ENV LC_ALL=en_US.UTF-8
+RUN groupadd --gid "${GID}" "${USERNAME}" \
+    && useradd --uid "${UID}" --gid "${GID}" --create-home --shell /bin/bash "${USERNAME}" \
+    && mkdir -p /workspace \
+    && chown "${USERNAME}:${USERNAME}" /workspace
 
+USER ${USERNAME}
 WORKDIR /workspace/myplatform
+
+CMD ["/bin/bash"]

@@ -1,0 +1,16 @@
+# Ignore everything by default.
+*
+
+# Keep the Dockerfile path used by the current build command.
+!platform/
+platform/*
+!platform/boards/
+platform/boards/*
+!platform/boards/imx6ull_100ask_pro/
+platform/boards/imx6ull_100ask_pro/*
+!platform/boards/imx6ull_100ask_pro/env/
+platform/boards/imx6ull_100ask_pro/env/*
+!platform/boards/imx6ull_100ask_pro/env/Dockerfile
+
+# Keep the ignore file itself for maintainability.
+!.dockerignore
