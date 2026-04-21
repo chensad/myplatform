@@ -6,13 +6,15 @@
 
 ## 当前板级事实
 
-- 参考资料来自 `Imx8mp/Linux 5.10.9 Distribution V2.0.0`
+- 参考资料来自 `Imx8mp/` 原厂 SDK、说明书和离线下载缓存
 - 官方 BSP 基于 `Yocto 3.2.1`
-- 内核版本是 `Linux 5.10.9`
+- 当前实际构建线使用 `Linux 5.10.72`
 - 当前平台板级目录是：
   - `platform/boards/myir_imx8m_plus/`
 - 当前平台调度入口是：
   - `platform/common/mk/backend-yocto.mk`
+- 当前推荐主机环境不是宿主机直编，而是：
+  - `platform/boards/myir_imx8m_plus/env/` 里的 `Ubuntu 18.04` Docker 环境
 
 当前目标板运行 `free -h` 输出约 `2.9Gi` 可用内存，可判断为 `3G DDR` 版本。
 因此当前板级配置显式选择：
@@ -40,6 +42,12 @@ Yocto 不是单一源码树，也不是单独的 rootfs 生成工具。它本质
 - `MACHINE=myd-jx8mp`
 - `DISTRO=fsl-imx-xwayland`
 - `IMAGE=myir-image-full`
+
+当前验证通过的板级总入口是：
+
+```bash
+make BOARD=myir_imx8m_plus yocto
+```
 
 ## MYIR i.MX8MP 的实际构建流程
 
@@ -101,6 +109,12 @@ bitbake myir-image-full
 
 ```bash
 build-xwayland/tmp/deploy/images/myd-jx8mp
+```
+
+在当前 `myplatform` 里，对应实际目录是：
+
+```bash
+build/out/myir_imx8m_plus/xwayland/yocto/tmp/deploy/images/myd-jx8mp
 ```
 
 ## Layer、Machine、Distro、Image 的关系
@@ -178,6 +192,149 @@ bitbake myir-image-full
 - 调用 `bitbake`
 
 这是一种“平台层统一入口 + 第三方 Yocto 原始层保留”的接法，适合当前阶段。
+
+## 当前推荐编译方法
+
+这次已经实际验证通过的推荐方法是固定 Docker 主机环境后再编，不再直接依赖宿主机
+Python 和系统库版本。
+
+### 1. 准备 Docker 编译环境
+
+工程目录：
+
+```bash
+cd /home/compile/workstation/project/codex/myplatform
+```
+
+构建镜像：
+
+```bash
+./platform/boards/myir_imx8m_plus/env/build-image.sh
+```
+
+如果已经有导出的环境 tar，也可以直接恢复：
+
+```bash
+./platform/boards/myir_imx8m_plus/env/load-image.sh
+```
+
+如果你本地导出了环境包，默认文件名和放置路径是：
+
+```bash
+platform/boards/myir_imx8m_plus/env/myir_imx8m_plus-yocto-env_ubuntu18.04.tar
+```
+
+这个文件只作为本地恢复用，不提交到 git 仓库；当前已由
+`platform/boards/myir_imx8m_plus/env/.gitignore` 忽略。
+
+### 2. 进入容器
+
+```bash
+./platform/boards/myir_imx8m_plus/scripts/enter-env.sh --docker
+```
+
+### 3. 编译 Yocto
+
+推荐直接用封装脚本：
+
+```bash
+./platform/boards/myir_imx8m_plus/env/run-yocto.sh
+```
+
+或者进入容器后继续统一入口：
+
+```bash
+make BOARD=myir_imx8m_plus yocto
+```
+
+### 4. 构建产物
+
+当前这轮已经成功生成：
+
+- `myir-image-full-myd-jx8mp.ext4`
+- `myir-image-full-myd-jx8mp.wic.bz2`
+- `myir-image-full-myd-jx8mp.wic.bmap`
+- `myir-image-full-myd-jx8mp.tar.bz2`
+- `Image-myd-jx8mp.bin`
+- `myd-jx8mp-base.dtb`
+- `imx-boot`
+- `u-boot-myd-jx8mp.bin`
+
+统一都在：
+
+```bash
+build/out/myir_imx8m_plus/xwayland/yocto/tmp/deploy/images/myd-jx8mp
+```
+
+## 本次构建修复记录
+
+这一轮不是单纯“把命令跑通”，而是把会阻塞当前板级 Yocto 的几个共因都收掉了。
+
+### 1. 固定 Docker 主机环境
+
+旧 Hardknott / NXP 5.10.72 BSP 在宿主机 `Ubuntu 24.04 + Python 3.12`
+上不稳定，实际遇到过：
+
+- `bitbake-worker` 多线程 `fork()` 兼容问题
+- `hashserve.sock` 清理和旧会话残留问题
+- 旧 `native/cross` 工具和新宿主 `glibc` 版本不匹配
+
+当前做法是增加 `Ubuntu 18.04` Docker 环境，并且让工程按宿主相同绝对路径挂载，
+避免 `TMPDIR` 和缓存路径飘移。
+
+### 2. 平台层构建入口修复
+
+在 `platform/common/mk/backend-yocto.mk` 侧补了：
+
+- 外置 `build/out/.../yocto` 构建目录初始化
+- `bblayers.conf` 里的 `BSPDIR` 和 `meta-swupdate` 修复
+- 构建前 stale `bitbake` 进程、lock、socket 清理
+- 统一从 `setup-environment` wrapper 进入
+
+### 3. 板级 local.conf 侧修复
+
+在 `platform/boards/myir_imx8m_plus/yocto/local.conf.fragment` 侧补了：
+
+- `UBOOT_CONFIG` 固定到 `3G DDR` 对应的 `myd_jx8mp_defconfig`
+- `BBMASK` 屏蔽无关 `linux-yocto`
+- `BB_SIGNATURE_HANDLER = "OEBasicHash"`
+- `BB_HASHSERVE = ""`
+- `BB_NUMBER_THREADS = "8"`
+- `PARALLEL_MAKE = "-j 8"`
+- `PARALLEL_MAKEINST = "-j 8"`
+- `NINJAFLAGS = "-j 8"`
+
+这一步解决了两类问题：
+
+- 旧 `hashserv` socket 失联
+- 16 GiB 主机上按 24 核默认并行导致的 OOM
+
+### 4. 第三方 Yocto 兼容补丁
+
+当前第三方 `yocto_5.10.72` 子模块里已经补过一批实际阻塞构建的兼容项，包括：
+
+- `setup-environment` 和 BitBake Python 兼容
+- `m4-native` / `m4` 在新宿主上的构建兼容
+- `util-linux-native`
+- `mklibs-native`
+- `apt-native`
+- `rpmdeps` / `package.bbclass`
+- `spirv-headers`
+- `vulkan-validationlayers`
+- `u-boot-imx`、`linux-imx`、`gstreamer1.0` 的源码源头和抓取规则修正
+
+其中 `vulkan-validationlayers` 的最终问题不是源码语法，而是大 C++ 文件在并行
+`ninja` 下触发 OOM；当前已经把这个 recipe 单独限制为串行编译。
+
+### 5. 本地源码镜像与下载缓存复用
+
+这轮还复用了两类本地缓存来避免公网不稳定：
+
+- `build/downloads/yocto`
+- `build/local-mirrors/`
+
+前者是 `DL_DIR` 下载缓存，后者主要用于少数 git 源码镜像和 vendor 提取出的本地仓库。
+这两个目录属于本地构建资产，不是长期业务源码。
 
 ## 为什么板级 DDR 选择不要直接写死在第三方源码里
 

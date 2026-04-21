@@ -33,3 +33,62 @@ make BOARD=imx6ull_100ask_pro buildroot
 ```
 
 详细使用说明见 `README_PLATFORM.md`。
+
+## MYIR i.MX8MP Yocto
+
+`myir_imx8m_plus` 当前已经验证可在 Docker 里的 `Ubuntu 18.04` 环境完成
+`myir-image-full` 构建。推荐直接走容器，不要再用宿主机 `Ubuntu 24.04`
+直接编这套旧 Yocto。
+
+首次准备：
+
+```bash
+git submodule update --init --recursive
+cd /home/compile/workstation/project/codex/myplatform
+./platform/boards/myir_imx8m_plus/env/build-image.sh
+```
+
+如果已经有导出的环境包，也可以直接恢复：
+
+```bash
+cd /home/compile/workstation/project/codex/myplatform
+./platform/boards/myir_imx8m_plus/env/load-image.sh
+```
+
+进入容器：
+
+```bash
+./platform/boards/myir_imx8m_plus/scripts/enter-env.sh --docker
+```
+
+直接编完整 Yocto 镜像：
+
+```bash
+./platform/boards/myir_imx8m_plus/env/run-yocto.sh
+```
+
+或者进入容器后继续统一入口：
+
+```bash
+make BOARD=myir_imx8m_plus yocto
+```
+
+当前验证通过的产物目录：
+
+```bash
+build/out/myir_imx8m_plus/xwayland/yocto/tmp/deploy/images/myd-jx8mp
+```
+
+常用镜像文件：
+
+- `myir-image-full-myd-jx8mp.ext4`
+- `myir-image-full-myd-jx8mp.wic.bz2`
+- `myir-image-full-myd-jx8mp.tar.bz2`
+- `imx-boot`
+- `Image-myd-jx8mp.bin`
+- `myd-jx8mp-base.dtb`
+
+补充说明见：
+
+- `platform/boards/myir_imx8m_plus/env/README.md`
+- `docs/yocto_myir_imx8mp_guide.md`
