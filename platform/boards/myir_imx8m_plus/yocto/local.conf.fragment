@@ -3,3 +3,20 @@
 # instead of relying on the vendor machine default.
 UBOOT_CONFIG = "sd"
 UBOOT_CONFIG[sd] = "myd_jx8mp_defconfig,sdcard"
+
+# This BSP uses linux-imx. Mask Poky's linux-yocto variants so unrelated
+# kernel recipes do not break parsing on modern Python hosts.
+BBMASK += "|.*/linux-yocto(_rt)?_.*\\.bb$"
+
+# Avoid Poky's local hashserve socket on this host. The basic hash handler
+# keeps builds deterministic enough here without hashserv connectivity.
+BB_SIGNATURE_HANDLER = "OEBasicHash"
+BB_HASHSERVE = ""
+
+# This host only has 16 GiB RAM. Letting Hardknott scale to all 24 CPUs causes
+# large C/C++ recipes to exhaust memory and the kernel OOM killer terminates
+# the cooker. Keep both task-level and per-recipe parallelism conservative.
+BB_NUMBER_THREADS = "8"
+PARALLEL_MAKE = "-j 8"
+PARALLEL_MAKEINST = "-j 8"
+NINJAFLAGS = "-j 8"

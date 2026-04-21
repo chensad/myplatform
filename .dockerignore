@@ -11,6 +11,11 @@ platform/boards/imx6ull_100ask_pro/*
 !platform/boards/imx6ull_100ask_pro/env/
 platform/boards/imx6ull_100ask_pro/env/*
 !platform/boards/imx6ull_100ask_pro/env/Dockerfile
+!platform/boards/myir_imx8m_plus/
+platform/boards/myir_imx8m_plus/*
+!platform/boards/myir_imx8m_plus/env/
+platform/boards/myir_imx8m_plus/env/*
+!platform/boards/myir_imx8m_plus/env/Dockerfile
 
 # Keep the ignore file itself for maintainability.
 !.dockerignore

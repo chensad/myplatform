@@ -1,0 +1,17 @@
+services:
+  myir_imx8m_plus:
+    container_name: myir_imx8m_plus_yocto_env
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    image: myplatform/myir_imx8m_plus:ubuntu18.04
+    working_dir: /home/compile/workstation/project/codex/myplatform
+    init: true
+    command: ["tail", "-f", "/dev/null"]
+    stdin_open: true
+    tty: true
+    volumes:
+      - ../../../..:/home/compile/workstation/project/codex/myplatform
