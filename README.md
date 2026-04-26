@@ -92,3 +92,53 @@ build/out/myir_imx8m_plus/xwayland/yocto/tmp/deploy/images/myd-jx8mp
 
 - `platform/boards/myir_imx8m_plus/env/README.md`
 - `docs/yocto_myir_imx8mp_guide.md`
+
+### 自定义 RoboBase Yocto Layer
+
+当前已经增加自定义 layer：
+
+```bash
+platform/boards/myir_imx8m_plus/yocto/layers/meta-robobase
+```
+
+该 layer 目前包含：
+
+- `robobase-image`：基于 MYIR `myir-image-full` 的自定义镜像
+- `test-yocto`：用于验证自定义 recipe 和镜像安装链路的用户态测试程序
+
+进入 Yocto 构建环境后，先确认 layer 已加入：
+
+```bash
+bitbake-layers show-layers | grep meta-robobase
+```
+
+单独构建测试程序：
+
+```bash
+bitbake test-yocto
+```
+
+构建自定义镜像：
+
+```bash
+bitbake robobase-image
+```
+
+构建成功后，产物位于：
+
+```bash
+build/out/myir_imx8m_plus/xwayland/yocto/tmp/deploy/images/myd-jx8mp
+```
+
+常用自定义镜像文件：
+
+- `robobase-image-myd-jx8mp.wic.bz2`
+- `robobase-image-myd-jx8mp.wic`
+- `robobase-image-myd-jx8mp.ext4`
+- `robobase-image-myd-jx8mp.manifest`
+
+烧录前建议先确认 `test-yocto` 已进入镜像：
+
+```bash
+grep test-yocto build/out/myir_imx8m_plus/xwayland/yocto/tmp/deploy/images/myd-jx8mp/robobase-image-myd-jx8mp.manifest
+```

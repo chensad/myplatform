@@ -1,0 +1,70 @@
+meta-robobase
+=============
+
+This layer contains RoboBase-specific Yocto customizations for the MYIR
+i.MX8M Plus board (`MACHINE=myd-jx8mp`).
+
+Current contents
+----------------
+
+- `recipes-core/images/robobase-image.bb`
+  Custom image target based on MYIR `myir-image-full`.
+- `recipes-robobase/robobase-demo/test-yocto_0.1.bb`
+  Minimal user-space test recipe used to verify that custom packages are built
+  and installed into the final image.
+
+Layer setup
+-----------
+
+From the initialized Yocto build environment:
+
+```bash
+bitbake-layers add-layer /home/compile/workstation/project/codex/myplatform/platform/boards/myir_imx8m_plus/yocto/layers/meta-robobase
+bitbake-layers show-layers
+```
+
+Expected layer entry:
+
+```text
+meta-robobase
+```
+
+Build targets
+-------------
+
+Build the test package only:
+
+```bash
+bitbake test-yocto
+```
+
+Build the RoboBase image:
+
+```bash
+bitbake robobase-image
+```
+
+The image recipe appends `test-yocto` to `IMAGE_INSTALL`, so the target rootfs
+should contain:
+
+```text
+/usr/bin/test-yocto
+```
+
+Before flashing, verify the package is present in the image manifest:
+
+```bash
+grep test-yocto tmp/deploy/images/myd-jx8mp/robobase-image-myd-jx8mp.manifest
+```
+
+Flashing artifact
+-----------------
+
+Use the full `.wic` disk image for TF card or UUU flashing:
+
+```text
+tmp/deploy/images/myd-jx8mp/robobase-image-myd-jx8mp.wic
+```
+
+Do not flash the `.ext4` file as a full disk image; it is only the rootfs
+partition image.

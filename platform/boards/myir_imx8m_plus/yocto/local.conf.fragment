@@ -6,7 +6,7 @@ UBOOT_CONFIG[sd] = "myd_jx8mp_defconfig,sdcard"
 
 # This BSP uses linux-imx. Mask Poky's linux-yocto variants so unrelated
 # kernel recipes do not break parsing on modern Python hosts.
-BBMASK += "|.*/linux-yocto(_rt)?_.*\\.bb$"
+BBMASK += ".*/linux-yocto(_rt)?_.*\\.bb$"
 
 # Avoid Poky's local hashserve socket on this host. The basic hash handler
 # keeps builds deterministic enough here without hashserv connectivity.
