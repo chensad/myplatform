@@ -14,3 +14,6 @@
 	path = third_party/yocto/yocto_5.10.72
 	url = https://github.com/chensad/yocto_5.10.72.git
 	branch = main
+[submodule "third_party/m7"]
+	path = third_party/m7
+	url = https://github.com/chensad/m7_sdk.git
