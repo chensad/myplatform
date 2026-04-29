@@ -414,3 +414,26 @@ meta-mycompany/
 - 不在第三方源码里堆长期业务逻辑
 - 优先通过板级 `local.conf` 片段、后续自定义 layer、设备树和 `.bbappend`
   管理差异
+
+## 当前实战记录
+
+当前已经建立自定义 layer：
+
+```text
+platform/boards/myir_imx8m_plus/yocto/layers/meta-robobase
+```
+
+其中已经包含：
+
+- `test-yocto_0.1.bb`
+  用来验证自定义应用 recipe 和 `/usr/bin` 安装路径
+- `robobase-image.bb`
+  基于 MYIR `myir-image-full` 派生自定义镜像
+- `linux-imx_%.bbappend`
+  给 NXP/MYIR `linux-imx` 内核 recipe 追加 CM7 remoteproc DTS 补丁
+
+详细实操、排错和 remoteproc/rpmsg 联调记录见：
+
+```text
+docs/boards/myir_imx8m_plus_yocto_layer_remoteproc_rpmsg_notes.md
+```

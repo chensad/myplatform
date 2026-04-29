@@ -16,3 +16,8 @@
 - `imx6ull_100ask_pro_i2c_learning_notes.md`
 - `imx6ull_100ask_pro_pinctrl_learning_notes.md`
 - `imx6ull_100ask_pro_uart_learning_notes.md`
+- `myir_imx8m_plus_yocto_dts_beginner_notes.md`
+- `myir_imx8m_plus_yocto_layer_remoteproc_rpmsg_notes.md`
+- `myir_imx8m_plus_remoteproc_tcm_hang_debug.md`
+- `myir_imx8m_plus_minimal_m7_rpmsg_firmware.md`
+- `myir_imx8m_plus_jetson_robobase_project_roadmap.md`

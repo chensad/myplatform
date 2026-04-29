@@ -4,12 +4,13 @@
 
 ## 目标
 
-把下面三个第三方源码目录收成 git 子仓库：
+把下面这些第三方源码目录收成 git 子仓库：
 
 - `myplatform/third_party/buildroot/buildroot-2020.02`
 - `myplatform/third_party/linux/imx-linux4.9.88`
 - `myplatform/third_party/uboot/imx-uboot2017.03`
 - `myplatform/third_party/yocto/yocto_5.10.72`
+- `myplatform/third_party/m7`
 
 `toolchain` 不建议做成子仓库，原因：
 
@@ -33,6 +34,7 @@ git submodule add <buildroot_repo_url> third_party/buildroot/buildroot-2020.02
 git submodule add <linux_repo_url> third_party/linux/imx-linux4.9.88
 git submodule add <uboot_repo_url> third_party/uboot/imx-uboot2017.03
 git submodule add <yocto_repo_url> third_party/yocto/yocto_5.10.72
+git submodule add <m7_repo_url> third_party/m7
 git submodule update --init --recursive
 git commit -m "Add third_party source submodules"
 ```
@@ -70,6 +72,7 @@ git submodule update --init --recursive
 - `third_party/linux/imx-linux4.9.88`
 - `third_party/uboot/imx-uboot2017.03`
 - `third_party/yocto/yocto_5.10.72`
+- `third_party/m7`
 
 如果这些目录不存在，才回退到旧 `100ask_imx6ull-sdk/`。
 
@@ -81,5 +84,12 @@ git submodule update --init --recursive
 - Linux 仓库：你现在实际维护的 `imx-linux4.9.88`
 - U-Boot 仓库：你现在实际维护的 `imx-uboot2017.03`
 - Yocto 仓库：你现在实际维护的 `yocto_5.10.72`
+- M7 仓库：只维护 `SDK_2_10_0_EVK-MIMX8MP` 和抽取后的 `rpmsg-lite-minimal`
 
 不要直接把 `100ask_imx6ull-sdk` 整仓作为一个子仓库挂进 `third_party`，否则还是回到旧的大杂烩结构。
+
+M7 子仓库也不要直接提交完整 `third_party/m7/mcuxpresso-sdk`、本地 Arm GCC 工具链、SDK 压缩包或 `armgcc/debug` 构建产物。当前策略是：
+
+- `SDK_2_10_0_EVK-MIMX8MP` 作为可启动骨架和基础源码依赖。
+- `rpmsg-lite-minimal` 作为从新 MCUXpresso SDK 中抽取的最小 RPMsg-Lite 源码副本。
+- `mcuxpresso-sdk` 只作为本机上游下载缓存，保留在 `.gitignore` 中。

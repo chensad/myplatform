@@ -1,0 +1,128 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: RoboBase <robobase@example.invalid>
+Date: Sun, 26 Apr 2026 20:40:00 +0800
+Subject: [PATCH] arm64: dts: myir: enable CM7 remoteproc on MYD-JX8MP
+
+Add the CM7 remoteproc node and the rpmsg reserved-memory windows
+needed for the Linux remoteproc/rpmsg bring-up path on MYIR MYD-JX8MP.
+
+Temporarily keep Linux off the peripherals that the NXP M7 demo firmware
+may initialize. This avoids A53 Linux and CM7 fighting over clocks, RDC,
+pinmux, or peripheral registers during initial remoteproc/rpmsg bring-up.
+Final ownership should be revisited when the robot M7 firmware is designed.
+
+Signed-off-by: RoboBase <robobase@example.invalid>
+---
+ arch/arm64/boot/dts/myir/myd-jx8mp-base.dts | 56 ++++++++++++++++++++++++++++
+ arch/arm64/boot/dts/myir/myd-jx8mp.dtsi     | 26 ++++++++++++++++++++++++++
+ 2 files changed, 82 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/myir/myd-jx8mp-base.dts b/arch/arm64/boot/dts/myir/myd-jx8mp-base.dts
+--- a/arch/arm64/boot/dts/myir/myd-jx8mp-base.dts
++++ b/arch/arm64/boot/dts/myir/myd-jx8mp-base.dts
+@@ -34,7 +34,19 @@ memory@40000000 {
+ 		reg = <0x0 0x40000000 0 0x80000000>,
+ 		      <0x0 0xc0000000 0 0x80000000>;
+ 	};
+ 
++	imx8mp-cm7 {
++		compatible = "fsl,imx8mp-cm7";
++		rsc-da = <0x55000000>;
++		clocks = <&clk IMX8MP_CLK_M7_CORE>;
++		mbox-names = "tx", "rx", "rxdb";
++		mboxes = <&mu 0 1
++			  &mu 1 1
++			  &mu 3 1>;
++		memory-region = <&vdevbuffer>, <&vdev0vring0>,
++				<&vdev0vring1>, <&rsc_table>;
++		status = "okay";
++	};
+ 	reg_can1_stby: regulator-can1-stby {
+ 		compatible = "regulator-fixed";
+ 		regulator-name = "can1-stby";
+@@ -1300,3 +1312,47 @@ pinctrl_io0_pwn:csi0_io_pwn_grp{
+ 		status = "okay";
+ 	};
+ };
++
++/*
++ * NXP M7 demo firmware initializes board clocks, RDC and pins for these
++ * peripherals. Keep Linux off them during CM7 remoteproc/rpmsg bring-up.
++ */
++&{/sound-wm8960} {
++	status = "disabled";
++};
++
++&{/sound-micfil} {
++	status = "disabled";
++};
++
++&ecspi2 {
++	status = "disabled";
++};
++
++&flexcan1 {
++	status = "disabled";
++};
++
++&flexspi {
++	status = "disabled";
++};
++
++&i2c3 {
++	status = "disabled";
++};
++
++&pwm4 {
++	status = "disabled";
++};
++
++&sai3 {
++	status = "disabled";
++};
++
++&sdma3 {
++	status = "disabled";
++};
++
++&uart4 {
++	status = "disabled";
++};
+diff --git a/arch/arm64/boot/dts/myir/myd-jx8mp.dtsi b/arch/arm64/boot/dts/myir/myd-jx8mp.dtsi
+--- a/arch/arm64/boot/dts/myir/myd-jx8mp.dtsi
++++ b/arch/arm64/boot/dts/myir/myd-jx8mp.dtsi
+@@ -214,6 +214,32 @@ dsp_vdev0buffer: vdev0buffer@94300000 {
+ 			no-map;
+ 		};
+ 
++		m7_reserved: m7@80000000 {
++			no-map;
++			reg = <0 0x80000000 0 0x1000000>;
++		};
++
++		vdev0vring0: vdev0vring0@55000000 {
++			reg = <0 0x55000000 0 0x8000>;
++			no-map;
++		};
++
++		vdev0vring1: vdev0vring1@55008000 {
++			reg = <0 0x55008000 0 0x8000>;
++			no-map;
++		};
++
++		vdevbuffer: vdevbuffer@55400000 {
++			compatible = "shared-dma-pool";
++			reg = <0 0x55400000 0 0x100000>;
++			no-map;
++		};
++
++		rsc_table: rsc_table@550ff000 {
++			reg = <0 0x550ff000 0 0x1000>;
++			no-map;
++		};
++
+ 		/* used only by tuning tool, can be removed for normal case */
+ 		isp0_reserved: isp0@94400000 {
+ 			no-map;
+-- 
+2.25.1

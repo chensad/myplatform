@@ -1,0 +1,185 @@
+diff --git a/drivers/remoteproc/imx_rproc.c b/drivers/remoteproc/imx_rproc.c
+index a0e61211d754..8ff6f64541e7 100644
+--- a/drivers/remoteproc/imx_rproc.c
++++ b/drivers/remoteproc/imx_rproc.c
+@@ -430,13 +430,19 @@ static int imx_rproc_start(struct rproc *rproc)
+ 	struct arm_smccc_res res;
+ 	int ret;
+ 
++	dev_info(dev, "robobase debug: imx_rproc_start: method=%d bootaddr=0x%llx\n",
++		 (int)dcfg->method, (unsigned long long)rproc->bootaddr);
++
+ 	switch (dcfg->method) {
+ 	case IMX_DIRECT_MMIO:
+ 		ret = regmap_update_bits(priv->regmap, dcfg->src_reg,
+ 					 dcfg->src_mask, dcfg->src_start);
+ 		break;
+ 	case IMX_ARM_SMCCC:
++		dev_info(dev, "robobase debug: imx_rproc_start: SMC M4_START begin\n");
+ 		arm_smccc_smc(IMX_SIP_SRC, IMX_SIP_SRC_M4_START, 0, 0, 0, 0, 0, 0, &res);
++		dev_info(dev, "robobase debug: imx_rproc_start: SMC M4_START done a0=%lu a1=%lu a2=%lu a3=%lu\n",
++			 res.a0, res.a1, res.a2, res.a3);
+ 		ret = res.a0;
+ 		break;
+ 	case IMX_SCU_API:
+@@ -464,8 +470,10 @@ static int imx_rproc_start(struct rproc *rproc)
+ 
+ 	if (ret)
+ 		dev_err(dev, "Failed to enable M4!\n");
+-	else
++	else {
++		dev_info(dev, "robobase debug: imx_rproc_start: ready wait begin\n");
+ 		ret = imx_rproc_ready(rproc);
++	}
+ 
+ 	return ret;
+ }
+@@ -587,6 +595,9 @@ static void *imx_rproc_da_to_va(struct rproc *rproc, u64 da, size_t len)
+ 		}
+ 	}
+ 
++	dev_info(&rproc->dev, "robobase debug: da_to_va da=0x%llx len=0x%zx sys=0x%llx va=%p\n",
++		 da, len, sys, va);
++
+ 	dev_dbg(&rproc->dev, "da = 0x%llx len = 0x%zx va = 0x%p\n",
+ 		da, len, va);
+ 
+@@ -862,12 +873,18 @@ static int imx_rproc_addr_init(struct imx_rproc *priv,
+ 
+ static void imx_rproc_memcpy(struct rproc *rproc, void *dest, const void *src, size_t count)
+ {
++	dev_info(&rproc->dev, "robobase debug: elf_memcpy begin dest=%p src=%p count=0x%zx\n",
++		 dest, src, count);
+ 	memcpy_toio((void * __iomem)dest, src, count);
++	dev_info(&rproc->dev, "robobase debug: elf_memcpy done count=0x%zx\n", count);
+ }
+ 
+ static void imx_rproc_memset(struct rproc *rproc, void *s, int c, size_t count)
+ {
++	dev_info(&rproc->dev, "robobase debug: elf_memset begin dest=%p value=0x%x count=0x%zx\n",
++		 s, c, count);
+ 	memset_io((void * __iomem)s, c, count);
++	dev_info(&rproc->dev, "robobase debug: elf_memset done count=0x%zx\n", count);
+ }
+ 
+ static void imx_rproc_vq_work(struct work_struct *work)
+diff --git a/drivers/remoteproc/remoteproc_core.c b/drivers/remoteproc/remoteproc_core.c
+index 47a00794fc36..3117f61dbe66 100644
+--- a/drivers/remoteproc/remoteproc_core.c
++++ b/drivers/remoteproc/remoteproc_core.c
+@@ -1358,7 +1358,9 @@ static int rproc_start(struct rproc *rproc, const struct firmware *fw)
+ 	int ret;
+ 
+ 	/* load the ELF segments to memory */
++	dev_info(dev, "robobase debug: rproc_start: load_segments begin\n");
+ 	ret = rproc_load_segments(rproc, fw);
++	dev_info(dev, "robobase debug: rproc_start: load_segments done ret=%d\n", ret);
+ 	if (ret) {
+ 		dev_err(dev, "Failed to load program segments: %d\n", ret);
+ 		return ret;
+@@ -1373,27 +1375,37 @@ static int rproc_start(struct rproc *rproc, const struct firmware *fw)
+ 	 * that any subsequent changes will be applied to the loaded version.
+ 	 */
+ 	loaded_table = rproc_find_loaded_rsc_table(rproc, fw);
++	dev_info(dev, "robobase debug: rproc_start: loaded_table=%p cached_table=%p table_sz=0x%zx\n",
++		 loaded_table, rproc->cached_table, rproc->table_sz);
+ 	if (loaded_table) {
++		dev_info(dev, "robobase debug: rproc_start: resource_table copy begin\n");
+ 		memcpy(loaded_table, rproc->cached_table, rproc->table_sz);
+ 		rproc->table_ptr = loaded_table;
++		dev_info(dev, "robobase debug: rproc_start: resource_table copy done\n");
+ 	}
+ 
++	dev_info(dev, "robobase debug: rproc_start: prepare_subdevices begin\n");
+ 	ret = rproc_prepare_subdevices(rproc);
+ 	if (ret) {
+ 		dev_err(dev, "failed to prepare subdevices for %s: %d\n",
+ 			rproc->name, ret);
+ 		goto reset_table_ptr;
+ 	}
++	dev_info(dev, "robobase debug: rproc_start: prepare_subdevices done\n");
+ 
+ 	/* power up the remote processor */
++	dev_info(dev, "robobase debug: rproc_start: ops->start begin\n");
+ 	ret = rproc->ops->start(rproc);
++	dev_info(dev, "robobase debug: rproc_start: ops->start done ret=%d\n", ret);
+ 	if (ret) {
+ 		dev_err(dev, "can't start rproc %s: %d\n", rproc->name, ret);
+ 		goto unprepare_subdevices;
+ 	}
+ 
+ 	/* Start any subdevices for the remote processor */
++	dev_info(dev, "robobase debug: rproc_start: start_subdevices begin\n");
+ 	ret = rproc_start_subdevices(rproc);
++	dev_info(dev, "robobase debug: rproc_start: start_subdevices done ret=%d\n", ret);
+ 	if (ret) {
+ 		dev_err(dev, "failed to probe subdevices for %s: %d\n",
+ 			rproc->name, ret);
+@@ -1468,6 +1480,7 @@ static int rproc_fw_boot(struct rproc *rproc, const struct firmware *fw)
+ 	int ret;
+ 
+ 	ret = rproc_fw_sanity_check(rproc, fw);
++	dev_info(dev, "robobase debug: fw_boot: sanity_check ret=%d\n", ret);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -1477,23 +1490,31 @@ static int rproc_fw_boot(struct rproc *rproc, const struct firmware *fw)
+ 	 * if enabling an IOMMU isn't relevant for this rproc, this is
+ 	 * just a nop
+ 	 */
++	dev_info(dev, "robobase debug: fw_boot: enable_iommu begin\n");
+ 	ret = rproc_enable_iommu(rproc);
++	dev_info(dev, "robobase debug: fw_boot: enable_iommu done ret=%d\n", ret);
+ 	if (ret) {
+ 		dev_err(dev, "can't enable iommu: %d\n", ret);
+ 		return ret;
+ 	}
+ 
+ 	/* Prepare rproc for firmware loading if needed */
++	dev_info(dev, "robobase debug: fw_boot: prepare_device begin\n");
+ 	ret = rproc_prepare_device(rproc);
++	dev_info(dev, "robobase debug: fw_boot: prepare_device done ret=%d\n", ret);
+ 	if (ret) {
+ 		dev_err(dev, "can't prepare rproc %s: %d\n", rproc->name, ret);
+ 		goto disable_iommu;
+ 	}
+ 
+ 	rproc->bootaddr = rproc_get_boot_addr(rproc, fw);
++	dev_info(dev, "robobase debug: fw_boot: bootaddr=0x%llx\n",
++		 (unsigned long long)rproc->bootaddr);
+ 
+ 	/* Load resource table, core dump segment list etc from the firmware */
++	dev_info(dev, "robobase debug: fw_boot: parse_fw begin\n");
+ 	ret = rproc_parse_fw(rproc, fw);
++	dev_info(dev, "robobase debug: fw_boot: parse_fw done ret=%d\n", ret);
+ 	if (ret)
+ 		goto unprepare_rproc;
+ 
+@@ -1504,21 +1525,27 @@ static int rproc_fw_boot(struct rproc *rproc, const struct firmware *fw)
+ 	rproc->nb_vdev = 0;
+ 
+ 	/* handle fw resources which are required to boot rproc */
++	dev_info(dev, "robobase debug: fw_boot: handle_resources begin\n");
+ 	ret = rproc_handle_resources(rproc, rproc_loading_handlers);
++	dev_info(dev, "robobase debug: fw_boot: handle_resources done ret=%d\n", ret);
+ 	if (ret) {
+ 		dev_err(dev, "Failed to process resources: %d\n", ret);
+ 		goto clean_up_resources;
+ 	}
+ 
+ 	/* Allocate carveout resources associated to rproc */
++	dev_info(dev, "robobase debug: fw_boot: alloc_carveouts begin\n");
+ 	ret = rproc_alloc_registered_carveouts(rproc);
++	dev_info(dev, "robobase debug: fw_boot: alloc_carveouts done ret=%d\n", ret);
+ 	if (ret) {
+ 		dev_err(dev, "Failed to allocate associated carveouts: %d\n",
+ 			ret);
+ 		goto clean_up_resources;
+ 	}
+ 
++	dev_info(dev, "robobase debug: fw_boot: rproc_start begin\n");
+ 	ret = rproc_start(rproc, fw);
++	dev_info(dev, "robobase debug: fw_boot: rproc_start done ret=%d\n", ret);
+ 	if (ret)
+ 		goto clean_up_resources;
+ 
