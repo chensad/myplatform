@@ -12,6 +12,9 @@ Current contents
 - `recipes-robobase/robobase-demo/test-yocto_0.1.bb`
   Minimal user-space test recipe used to verify that custom packages are built
   and installed into the final image.
+- `recipes-robobase/robobase-rpmsg-test/robobase-rpmsg-test_0.1.bb`
+  User-space RPMsg tty echo and RoboBase safety protocol test tool for the CM7
+  `robobase_m7_rpmsg_tty_echo` firmware.
 
 Layer setup
 -----------
@@ -38,23 +41,55 @@ Build the test package only:
 bitbake test-yocto
 ```
 
+Build the RPMsg test tool only:
+
+```bash
+bitbake robobase-rpmsg-test
+```
+
 Build the RoboBase image:
 
 ```bash
 bitbake robobase-image
 ```
 
-The image recipe appends `test-yocto` to `IMAGE_INSTALL`, so the target rootfs
-should contain:
+The image recipe appends `test-yocto` and `robobase-rpmsg-test` to
+`IMAGE_INSTALL`, so the target rootfs should contain:
 
 ```text
 /usr/bin/test-yocto
+/usr/bin/robobase-rpmsg-test
 ```
 
 Before flashing, verify the package is present in the image manifest:
 
 ```bash
 grep test-yocto tmp/deploy/images/myd-jx8mp/robobase-image-myd-jx8mp.manifest
+grep robobase-rpmsg-test tmp/deploy/images/myd-jx8mp/robobase-image-myd-jx8mp.manifest
+```
+
+Board-side RPMsg echo test:
+
+```bash
+modprobe imx_rpmsg_tty
+R=/sys/class/remoteproc/remoteproc0
+echo robobase_m7_rpmsg_tty_echo.elf > "$R/firmware"
+echo start > "$R/state"
+robobase-rpmsg-test -d /dev/ttyRPMSG30 -n 10
+```
+
+Board-side RoboBase safety protocol test:
+
+```bash
+robobase-rpmsg-test --safety -d /dev/ttyRPMSG30 -n 10
+robobase-rpmsg-test --safety -d /dev/ttyRPMSG30 --upstream-invalid
+robobase-rpmsg-test --safety -d /dev/ttyRPMSG30 --clear-fault 0xffffffff
+```
+
+The safety protocol ABI is defined in:
+
+```text
+platform/common/include/robobase/rb_safety_proto.h
 ```
 
 Flashing artifact
