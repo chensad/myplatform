@@ -86,6 +86,17 @@ robobase-rpmsg-test --safety -d /dev/ttyRPMSG30 --upstream-invalid
 robobase-rpmsg-test --safety -d /dev/ttyRPMSG30 --clear-fault 0xffffffff
 ```
 
+Board-side M7 watchdog test:
+
+```bash
+robobase-rpmsg-test --safety -d /dev/ttyRPMSG30 --lease-timeout-ms 200 -n 1
+sleep 1
+robobase-rpmsg-test --query-status -d /dev/ttyRPMSG30
+```
+
+The query should report `state=SAFE_STOP`, `motion=0`, and
+`fault=0x00000004` after the local M7 lease watchdog expires.
+
 The safety protocol ABI is defined in:
 
 ```text

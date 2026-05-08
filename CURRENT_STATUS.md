@@ -1,6 +1,6 @@
 # Current Project Status
 
-Updated: 2026-05-07
+Updated: 2026-05-08
 
 This file is intended as the first file to read when starting a new Codex CLI
 session. It captures the workspace context, current project state, verified
@@ -520,13 +520,22 @@ Expected first-version behavior:
 - Valid lease: M7 reports `state=RUNNING`, `motion=1`, and `fault=0x00000000`.
 - Invalid upstream lease: M7 reports `state=SAFE_STOP`, `motion=0`, and sets
   `RB_FAULT_UPSTREAM_TIMEOUT`.
-- Driver or power fault flags are latched until a `CLEAR_FAULT` frame is sent.
+- Driver or power fault flags currently behave as transient Linux health
+  inputs; they clear when later valid leases report them healthy again.
 
-Current limitation:
+M7 local watchdog test:
 
-- The timeout path is still a v0.1 software bring-up approximation. It detects
-  stale Linux lease timing from received messages; a true autonomous M7 watchdog
-  still needs a timer tick that runs even when no RPMsg frame arrives.
+```sh
+robobase-rpmsg-test --safety -d /dev/ttyRPMSG30 --lease-timeout-ms 200 -n 1
+sleep 1
+robobase-rpmsg-test --query-status -d /dev/ttyRPMSG30
+```
+
+Expected watchdog behavior:
+
+- Query does not refresh the lease.
+- M7 reports `state=SAFE_STOP`, `motion=0`, and `fault=0x00000004`.
+- `0x00000004` is `RB_FAULT_LINUX_TIMEOUT`.
 
 ## Dual-Brain Robot Project
 
@@ -594,16 +603,17 @@ Highest priority for the active robot path:
 3. Validate echo mode first, then validate safety mode:
    `--safety`, `--upstream-invalid`, `--driver-fault`, `--power-fault`, and
    `--clear-fault`.
-4. Replace the v0.1 M7 lease-age approximation with a real M7 timer tick so
-   Linux link loss is detected even when no RPMsg frame arrives.
-5. Add a Yocto recipe to install the M7 firmware into `/lib/firmware`.
-6. Remove or reduce noisy remoteproc debug logs after the bring-up path is
+4. Connect real M7-side estop and bumper GPIO inputs.
+5. Rename Linux-provided `driver_ok` and `power_ok` fields to make the safety
+   responsibility boundary clearer.
+6. Add a Yocto recipe to install the M7 firmware into `/lib/firmware`.
+7. Remove or reduce noisy remoteproc debug logs after the bring-up path is
    stable.
 
 Do not prioritize Jetson/ROS2 integration before the i.MX8MP lower-board and
 M7 safety chain are stable.
 
-## Latest Implementation Snapshot On 2026-05-07
+## Latest Implementation Snapshot On 2026-05-08
 
 The first RoboBase M7 safety protocol draft has been implemented over the
 existing `/dev/ttyRPMSG30` link.
@@ -621,17 +631,39 @@ Implemented protocol pieces:
 - Linux to M7 `LEASE`
 - M7 to Linux `STATUS`
 - Linux to M7 `CLEAR_FAULT`
+- Linux to M7 `HELLO` as a status query that does not refresh the lease
 - States: `BOOT`, `STANDBY`, `ARMED`, `RUNNING`, `SAFE_STOP`,
   `FAULT_LATCHED`
 - Fault bits: estop, bumper, Linux timeout, upstream timeout, driver fault,
   power fault, protocol error
+- M7 local SysTick watchdog detects Linux lease expiry even when no new RPMsg
+  frame arrives.
 
 Verified locally:
 
 ```text
 gcc -Wall -Wextra -std=c11 ... robobase-rpmsg-test.c
 ./build_debug.sh for robobase_m7_rpmsg_tty_echo.elf
+bitbake robobase-rpmsg-test
 git diff --check
+```
+
+Verified on MYD-JX8MP board:
+
+```text
+robobase-rpmsg-test --safety -d /dev/ttyRPMSG30 -n 3
+-> state=RUNNING motion=1 fault=0x00000000, 3/3 ok
+
+robobase-rpmsg-test --safety -d /dev/ttyRPMSG30 --lease-timeout-ms 200 -n 1
+sleep 1
+robobase-rpmsg-test --query-status -d /dev/ttyRPMSG30
+-> state=SAFE_STOP motion=0 fault=0x00000004
+```
+
+Detailed validation note:
+
+```text
+docs/boards/myir_imx8m_plus_m7_local_watchdog_validation.md
 ```
 
 ## Known Risks And Notes

@@ -21,4 +21,5 @@
 - `myir_imx8m_plus_remoteproc_tcm_hang_debug.md`
 - `myir_imx8m_plus_minimal_m7_rpmsg_firmware.md`
 - `myir_imx8m_plus_remoteproc_rpmsg_source_walkthrough.md`
+- `myir_imx8m_plus_m7_local_watchdog_validation.md`
 - `myir_imx8m_plus_jetson_robobase_project_roadmap.md`

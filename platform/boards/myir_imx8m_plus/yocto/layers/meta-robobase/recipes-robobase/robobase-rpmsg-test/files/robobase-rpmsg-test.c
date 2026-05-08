@@ -35,6 +35,7 @@ struct app_options {
 	bool driver_ok;
 	bool power_ok;
 	bool clear_fault;
+	bool query_status;
 };
 
 static long now_ms(void)
@@ -88,6 +89,7 @@ static void print_usage(const char *prog)
 	printf("      --driver-fault         Send driver_ok=0\n");
 	printf("      --power-fault          Send power_ok=0\n");
 	printf("      --clear-fault MASK     Send CLEAR_FAULT with mask before lease loop\n");
+	printf("      --query-status         Send HELLO and read STATUS without refreshing lease\n");
 	printf("\n");
 	printf("Other options:\n");
 	printf("  -l, --list                 List /dev/*rpmsg* candidates and exit\n");
@@ -98,6 +100,7 @@ static void print_usage(const char *prog)
 	printf("  %s --safety -n 10\n", prog);
 	printf("  %s --safety --upstream-invalid\n", prog);
 	printf("  %s --safety --clear-fault 0xffffffff\n", prog);
+	printf("  %s --query-status\n", prog);
 }
 
 static int parse_positive_int(const char *text, int *value)
@@ -149,6 +152,7 @@ static int parse_args(int argc, char **argv, struct app_options *opts)
 	opts->driver_ok = true;
 	opts->power_ok = true;
 	opts->clear_fault = false;
+	opts->query_status = false;
 
 	for (i = 1; i < argc; ++i) {
 		if (!strcmp(argv[i], "-d") || !strcmp(argv[i], "--device")) {
@@ -185,14 +189,17 @@ static int parse_args(int argc, char **argv, struct app_options *opts)
 		} else if (!strcmp(argv[i], "--power-fault")) {
 			opts->safety_mode = true;
 			opts->power_ok = false;
-		} else if (!strcmp(argv[i], "--clear-fault")) {
-			if (++i >= argc || parse_u32(argv[i], &opts->clear_mask) < 0)
-				return -1;
-			opts->safety_mode = true;
-			opts->clear_fault = true;
-		} else if (!strcmp(argv[i], "-l") || !strcmp(argv[i], "--list")) {
-			opts->list_devices = true;
-		} else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
+			} else if (!strcmp(argv[i], "--clear-fault")) {
+				if (++i >= argc || parse_u32(argv[i], &opts->clear_mask) < 0)
+					return -1;
+				opts->safety_mode = true;
+				opts->clear_fault = true;
+			} else if (!strcmp(argv[i], "--query-status")) {
+				opts->safety_mode = true;
+				opts->query_status = true;
+			} else if (!strcmp(argv[i], "-l") || !strcmp(argv[i], "--list")) {
+				opts->list_devices = true;
+			} else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
 			print_usage(argv[0]);
 			exit(0);
 		} else {
@@ -495,6 +502,22 @@ static int send_clear_fault(int fd, uint32_t seq, uint32_t clear_mask, int timeo
 	return 0;
 }
 
+static int query_status(int fd, uint32_t seq, int timeout_ms)
+{
+	struct rb_safe_hdr hdr;
+	struct rb_safe_status_msg status;
+
+	rb_safe_hdr_init(&hdr, RB_SAFE_MSG_HELLO, seq, 0);
+
+	if (write_all(fd, (const unsigned char *)&hdr, sizeof(hdr)) < 0)
+		return -1;
+	if (read_status_frame(fd, seq, timeout_ms, &status) < 0)
+		return -1;
+
+	print_status(0, &status);
+	return 0;
+}
+
 static int run_safety_mode(int fd, const struct app_options *opts)
 {
 	unsigned char frame[sizeof(struct rb_safe_hdr) + sizeof(struct rb_safe_lease_msg)];
@@ -511,6 +534,9 @@ static int run_safety_mode(int fd, const struct app_options *opts)
 		if (send_clear_fault(fd, seq++, opts->clear_mask, opts->timeout_ms) < 0)
 			return 1;
 	}
+
+	if (opts->query_status)
+		return query_status(fd, seq, opts->timeout_ms) < 0 ? 1 : 0;
 
 	for (i = 1; i <= opts->count; ++i, ++seq) {
 		struct rb_safe_status_msg status;
