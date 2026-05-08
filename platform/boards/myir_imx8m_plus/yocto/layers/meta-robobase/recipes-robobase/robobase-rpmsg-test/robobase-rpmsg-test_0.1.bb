@@ -6,7 +6,7 @@ SRC_URI = "file://robobase-rpmsg-test.c"
 
 S = "${WORKDIR}"
 
-ROBOBASE_COMMON_INCLUDE = "${LAYERDIR}/../../../../../common/include"
+ROBOBASE_COMMON_INCLUDE := "${THISDIR}/../../../../../../../common/include"
 
 do_compile() {
     ${CC} ${CFLAGS} -I${ROBOBASE_COMMON_INCLUDE} ${LDFLAGS} robobase-rpmsg-test.c -o robobase-rpmsg-test
