@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+DEVICE_GLOB="${ROBOBASE_RPMSG_TTY_GLOB:-/dev/ttyRPMSG*}"
+TIMEOUT="${ROBOBASE_RPMSG_TTY_TIMEOUT:-20}"
+
+modprobe -q imx_rpmsg_tty || true
+
+elapsed=0
+while [ "$elapsed" -lt "$TIMEOUT" ]; do
+    for dev in $DEVICE_GLOB; do
+        if [ -e "$dev" ]; then
+            echo "robobase-rpmsg-tty-setup: found $dev"
+            exit 0
+        fi
+    done
+
+    sleep 1
+    elapsed=$((elapsed + 1))
+done
+
+echo "robobase-rpmsg-tty-setup: timed out waiting for $DEVICE_GLOB" >&2
+exit 1

@@ -1,0 +1,14 @@
+[Unit]
+Description=Start RoboBase Cortex-M7 firmware
+After=local-fs.target systemd-modules-load.service
+Before=robobase-rpmsg-tty.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/robobase-m7
+ExecStart=/usr/bin/robobase-m7-start
+ExecStop=/usr/bin/robobase-m7-stop
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

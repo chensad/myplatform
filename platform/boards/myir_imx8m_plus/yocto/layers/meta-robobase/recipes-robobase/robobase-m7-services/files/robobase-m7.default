@@ -1,0 +1,12 @@
+# Optional overrides for RoboBase CM7 remoteproc startup.
+#
+# Firmware is resolved by the Linux firmware loader from /lib/firmware or
+# /usr/lib/firmware. The file must be installed separately for now.
+ROBOBASE_M7_FIRMWARE=robobase_m7_rpmsg_tty_echo.elf
+
+# Leave empty to auto-detect the CM7 remoteproc instance.
+ROBOBASE_M7_REMOTEPROC=
+
+ROBOBASE_M7_START_TIMEOUT=10
+ROBOBASE_RPMSG_TTY_GLOB=/dev/ttyRPMSG*
+ROBOBASE_RPMSG_TTY_TIMEOUT=20

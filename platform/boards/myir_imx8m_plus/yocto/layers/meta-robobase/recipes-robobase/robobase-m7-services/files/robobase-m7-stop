@@ -1,0 +1,47 @@
+#!/bin/sh
+set -eu
+
+find_remoteproc()
+{
+    for rproc in /sys/class/remoteproc/remoteproc*; do
+        [ -d "$rproc" ] || continue
+
+        if [ -r "$rproc/name" ]; then
+            name="$(cat "$rproc/name")"
+            case "$name" in
+                *cm7*|*CM7*|*m7*|*M7*|*m4*|*M4*|*imx-rproc*)
+                    printf '%s\n' "$rproc"
+                    return 0
+                    ;;
+            esac
+        fi
+    done
+
+    count=0
+    only=""
+    for rproc in /sys/class/remoteproc/remoteproc*; do
+        [ -d "$rproc" ] || continue
+        count=$((count + 1))
+        only="$rproc"
+    done
+
+    if [ "$count" -eq 1 ]; then
+        printf '%s\n' "$only"
+        return 0
+    fi
+
+    return 1
+}
+
+rproc="${ROBOBASE_M7_REMOTEPROC:-}"
+if [ -z "$rproc" ]; then
+    if ! rproc="$(find_remoteproc)"; then
+        echo "robobase-m7-stop: no CM7 remoteproc found under /sys/class/remoteproc" >&2
+        exit 0
+    fi
+fi
+
+if [ -w "$rproc/state" ]; then
+    echo stop > "$rproc/state" || true
+    echo "robobase-m7-stop: stopped $rproc"
+fi

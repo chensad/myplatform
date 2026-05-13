@@ -5,4 +5,4 @@ require ${BSPDIR}/sources/meta-myir/meta-sdk/recipes-fsl/images/myir-image-full.
 
 DESCRIPTION = "Custom RoboBase image based on MYIR full image"
 
-IMAGE_INSTALL_append = " test-yocto robobase-rpmsg-test"
+IMAGE_INSTALL_append = " test-yocto robobase-rpmsg-test robobase-m7-firmware robobase-m7-services"

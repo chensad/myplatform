@@ -1,0 +1,87 @@
+#!/bin/sh
+set -eu
+
+FIRMWARE="${ROBOBASE_M7_FIRMWARE:-robobase_m7_rpmsg_tty_echo.elf}"
+TIMEOUT="${ROBOBASE_M7_START_TIMEOUT:-10}"
+
+find_remoteproc()
+{
+    for rproc in /sys/class/remoteproc/remoteproc*; do
+        [ -d "$rproc" ] || continue
+
+        if [ -r "$rproc/name" ]; then
+            name="$(cat "$rproc/name")"
+            case "$name" in
+                *cm7*|*CM7*|*m7*|*M7*|*m4*|*M4*|*imx-rproc*)
+                    printf '%s\n' "$rproc"
+                    return 0
+                    ;;
+            esac
+        fi
+    done
+
+    count=0
+    only=""
+    for rproc in /sys/class/remoteproc/remoteproc*; do
+        [ -d "$rproc" ] || continue
+        count=$((count + 1))
+        only="$rproc"
+    done
+
+    if [ "$count" -eq 1 ]; then
+        printf '%s\n' "$only"
+        return 0
+    fi
+
+    return 1
+}
+
+rproc="${ROBOBASE_M7_REMOTEPROC:-}"
+if [ -z "$rproc" ]; then
+    if ! rproc="$(find_remoteproc)"; then
+        echo "robobase-m7-start: no CM7 remoteproc found under /sys/class/remoteproc" >&2
+        exit 1
+    fi
+fi
+
+if [ ! -d "$rproc" ]; then
+    echo "robobase-m7-start: remoteproc path does not exist: $rproc" >&2
+    exit 1
+fi
+
+if [ ! -e "/lib/firmware/$FIRMWARE" ] && [ ! -e "/usr/lib/firmware/$FIRMWARE" ]; then
+    echo "robobase-m7-start: firmware not found: $FIRMWARE" >&2
+    echo "robobase-m7-start: install it under /lib/firmware or override ROBOBASE_M7_FIRMWARE" >&2
+    exit 1
+fi
+
+state="unknown"
+if [ -r "$rproc/state" ]; then
+    state="$(cat "$rproc/state")"
+fi
+
+case "$state" in
+    running|attached)
+        echo stop > "$rproc/state" || true
+        ;;
+esac
+
+echo "$FIRMWARE" > "$rproc/firmware"
+echo start > "$rproc/state"
+
+elapsed=0
+while [ "$elapsed" -lt "$TIMEOUT" ]; do
+    state="$(cat "$rproc/state")"
+    case "$state" in
+        running|attached)
+            echo "robobase-m7-start: $rproc running firmware $FIRMWARE"
+            exit 0
+            ;;
+    esac
+
+    sleep 1
+    elapsed=$((elapsed + 1))
+done
+
+echo "robobase-m7-start: timed out waiting for $rproc to run, state=$(cat "$rproc/state")" >&2
+exit 1

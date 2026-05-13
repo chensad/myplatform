@@ -1,0 +1,13 @@
+[Unit]
+Description=Load RoboBase RPMsg TTY endpoint
+After=robobase-m7.service
+Requires=robobase-m7.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/robobase-m7
+ExecStart=/usr/bin/robobase-rpmsg-tty-setup
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
