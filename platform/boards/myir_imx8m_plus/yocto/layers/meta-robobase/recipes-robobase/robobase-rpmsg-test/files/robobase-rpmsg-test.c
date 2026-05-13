@@ -28,6 +28,7 @@ struct app_options {
 	int count;
 	int lease_timeout_ms;
 	uint32_t clear_mask;
+	uint32_t sim_input_mask;
 	bool append_newline;
 	bool list_devices;
 	bool safety_mode;
@@ -36,6 +37,9 @@ struct app_options {
 	bool power_ok;
 	bool clear_fault;
 	bool query_status;
+	bool sim_inputs;
+	uint8_t sim_estop_gpio_level;
+	uint8_t sim_bumper_gpio_level;
 };
 
 static long now_ms(void)
@@ -90,6 +94,10 @@ static void print_usage(const char *prog)
 	printf("      --power-fault          Send power_ok=0\n");
 	printf("      --clear-fault MASK     Send CLEAR_FAULT with mask before lease loop\n");
 	printf("      --query-status         Send HELLO and read STATUS without refreshing lease\n");
+	printf("      --estop-gpio-high      Bias M7 GPIO5_IO10 high: NC open/fault\n");
+	printf("      --estop-gpio-low       Bias M7 GPIO5_IO10 low: NC closed/safe\n");
+	printf("      --bumper-gpio-high     Bias M7 GPIO5_IO12 high: NC open/fault\n");
+	printf("      --bumper-gpio-low      Bias M7 GPIO5_IO12 low: NC closed/safe\n");
 	printf("\n");
 	printf("Other options:\n");
 	printf("  -l, --list                 List /dev/*rpmsg* candidates and exit\n");
@@ -101,6 +109,8 @@ static void print_usage(const char *prog)
 	printf("  %s --safety --upstream-invalid\n", prog);
 	printf("  %s --safety --clear-fault 0xffffffff\n", prog);
 	printf("  %s --query-status\n", prog);
+	printf("  %s --estop-gpio-high --safety -n 1\n", prog);
+	printf("  %s --estop-gpio-low --clear-fault 0xffffffff --safety\n", prog);
 }
 
 static int parse_positive_int(const char *text, int *value)
@@ -145,6 +155,7 @@ static int parse_args(int argc, char **argv, struct app_options *opts)
 	opts->count = DEFAULT_COUNT;
 	opts->lease_timeout_ms = DEFAULT_LEASE_TIMEOUT_MS;
 	opts->clear_mask = 0;
+	opts->sim_input_mask = 0;
 	opts->append_newline = false;
 	opts->list_devices = false;
 	opts->safety_mode = false;
@@ -153,6 +164,9 @@ static int parse_args(int argc, char **argv, struct app_options *opts)
 	opts->power_ok = true;
 	opts->clear_fault = false;
 	opts->query_status = false;
+	opts->sim_inputs = false;
+	opts->sim_estop_gpio_level = 0;
+	opts->sim_bumper_gpio_level = 0;
 
 	for (i = 1; i < argc; ++i) {
 		if (!strcmp(argv[i], "-d") || !strcmp(argv[i], "--device")) {
@@ -189,17 +203,41 @@ static int parse_args(int argc, char **argv, struct app_options *opts)
 		} else if (!strcmp(argv[i], "--power-fault")) {
 			opts->safety_mode = true;
 			opts->power_ok = false;
-			} else if (!strcmp(argv[i], "--clear-fault")) {
-				if (++i >= argc || parse_u32(argv[i], &opts->clear_mask) < 0)
-					return -1;
-				opts->safety_mode = true;
-				opts->clear_fault = true;
-			} else if (!strcmp(argv[i], "--query-status")) {
-				opts->safety_mode = true;
-				opts->query_status = true;
-			} else if (!strcmp(argv[i], "-l") || !strcmp(argv[i], "--list")) {
-				opts->list_devices = true;
-			} else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
+		} else if (!strcmp(argv[i], "--clear-fault")) {
+			if (++i >= argc || parse_u32(argv[i], &opts->clear_mask) < 0)
+				return -1;
+			opts->safety_mode = true;
+			opts->clear_fault = true;
+		} else if (!strcmp(argv[i], "--query-status")) {
+			opts->safety_mode = true;
+			opts->query_status = true;
+		} else if (!strcmp(argv[i], "--estop-gpio-high") ||
+			   !strcmp(argv[i], "--sim-estop-open")) {
+			opts->safety_mode = true;
+			opts->sim_inputs = true;
+			opts->sim_input_mask |= RB_SAFE_DEBUG_INPUT_ESTOP;
+			opts->sim_estop_gpio_level = 1;
+		} else if (!strcmp(argv[i], "--estop-gpio-low") ||
+			   !strcmp(argv[i], "--sim-estop-closed")) {
+			opts->safety_mode = true;
+			opts->sim_inputs = true;
+			opts->sim_input_mask |= RB_SAFE_DEBUG_INPUT_ESTOP;
+			opts->sim_estop_gpio_level = 0;
+		} else if (!strcmp(argv[i], "--bumper-gpio-high") ||
+			   !strcmp(argv[i], "--sim-bumper-open")) {
+			opts->safety_mode = true;
+			opts->sim_inputs = true;
+			opts->sim_input_mask |= RB_SAFE_DEBUG_INPUT_BUMPER;
+			opts->sim_bumper_gpio_level = 1;
+		} else if (!strcmp(argv[i], "--bumper-gpio-low") ||
+			   !strcmp(argv[i], "--sim-bumper-closed")) {
+			opts->safety_mode = true;
+			opts->sim_inputs = true;
+			opts->sim_input_mask |= RB_SAFE_DEBUG_INPUT_BUMPER;
+			opts->sim_bumper_gpio_level = 0;
+		} else if (!strcmp(argv[i], "-l") || !strcmp(argv[i], "--list")) {
+			opts->list_devices = true;
+		} else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
 			print_usage(argv[0]);
 			exit(0);
 		} else {
@@ -473,11 +511,39 @@ static int read_status_frame(int fd, uint32_t expected_seq, int timeout_ms,
 static void print_status(int index, const struct rb_safe_status_msg *status)
 {
 	printf("status %d state=%s motion=%u fault=0x%08x latched=0x%08x "
-	       "heartbeat=%u last_seq=%u lease_age=%u loop=%u\n",
+	       "estop_nc=%u bumper_nc=%u heartbeat=%u last_seq=%u lease_age=%u loop=%u\n",
 	       index, safe_state_name(status->state), status->motion_enable,
 	       status->fault_bits, status->latched_fault_bits,
+	       status->estop_nc_closed, status->bumper_nc_closed,
 	       status->heartbeat_counter, status->last_linux_seq,
 	       status->last_lease_age_ms, status->safety_loop_counter);
+}
+
+static int send_debug_inputs(int fd, uint32_t seq, const struct app_options *opts,
+			     int timeout_ms)
+{
+	unsigned char frame[sizeof(struct rb_safe_hdr) +
+			    sizeof(struct rb_safe_debug_inputs_msg)];
+	struct rb_safe_hdr *hdr = (struct rb_safe_hdr *)frame;
+	struct rb_safe_debug_inputs_msg *debug_inputs =
+		(struct rb_safe_debug_inputs_msg *)(frame + sizeof(*hdr));
+	struct rb_safe_status_msg status;
+
+	rb_safe_hdr_init(hdr, RB_SAFE_MSG_DEBUG_INPUTS, seq, sizeof(*debug_inputs));
+	debug_inputs->request_id = seq;
+	debug_inputs->valid_mask = opts->sim_input_mask;
+	debug_inputs->estop_gpio_level = opts->sim_estop_gpio_level;
+	debug_inputs->bumper_gpio_level = opts->sim_bumper_gpio_level;
+	debug_inputs->reserved0 = 0;
+	debug_inputs->reserved1 = 0;
+
+	if (write_all(fd, frame, sizeof(frame)) < 0)
+		return -1;
+	if (read_status_frame(fd, seq, timeout_ms, &status) < 0)
+		return -1;
+
+	print_status(0, &status);
+	return 0;
 }
 
 static int send_clear_fault(int fd, uint32_t seq, uint32_t clear_mask, int timeout_ms)
@@ -529,6 +595,11 @@ static int run_safety_mode(int fd, const struct app_options *opts)
 	int ok_count = 0;
 	int i;
 	uint32_t seq = 1;
+
+	if (opts->sim_inputs) {
+		if (send_debug_inputs(fd, seq++, opts, opts->timeout_ms) < 0)
+			return 1;
+	}
 
 	if (opts->clear_fault) {
 		if (send_clear_fault(fd, seq++, opts->clear_mask, opts->timeout_ms) < 0)

@@ -20,6 +20,7 @@ enum rb_safe_msg_type {
 	RB_SAFE_MSG_LEASE = 2,
 	RB_SAFE_MSG_STATUS = 3,
 	RB_SAFE_MSG_CLEAR_FAULT = 4,
+	RB_SAFE_MSG_DEBUG_INPUTS = 5,
 };
 
 enum rb_safe_state {
@@ -82,6 +83,26 @@ struct rb_safe_clear_fault_msg {
 	uint32_t request_id;
 	uint32_t clear_mask;
 	uint32_t confirm;
+} RB_SAFE_PACKED;
+
+enum rb_safe_debug_input_mask {
+	RB_SAFE_DEBUG_INPUT_ESTOP = 1u << 0,
+	RB_SAFE_DEBUG_INPUT_BUMPER = 1u << 1,
+};
+
+/*
+ * Debug-only GPIO input bias control for bench validation without external
+ * switches. M7 keeps the pins as real GPIO inputs and applies internal pad bias:
+ * 0 = pull-down, emulating NC contact closed to GND; 1 = pull-up, emulating
+ * contact open/fault. STATUS still reports the actual GPIO pad sample.
+ */
+struct rb_safe_debug_inputs_msg {
+	uint32_t request_id;
+	uint32_t valid_mask;
+	uint8_t estop_gpio_level;
+	uint8_t bumper_gpio_level;
+	uint16_t reserved0;
+	uint32_t reserved1;
 } RB_SAFE_PACKED;
 
 static inline void rb_safe_hdr_init(struct rb_safe_hdr *hdr, uint16_t msg_type,
