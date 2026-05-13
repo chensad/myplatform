@@ -144,6 +144,20 @@ meta-robobase/
       test-yocto_0.1.bb
       files/
         test-yocto.c
+    robobase-rpmsg-test/
+      robobase-rpmsg-test_0.1.bb
+      files/
+        robobase-rpmsg-test.c
+    robobase-m7-firmware/
+      robobase-m7-firmware_0.1.bb
+    robobase-m7-services/
+      robobase-m7-services_0.1.bb
+      files/
+        robobase-m7-start
+        robobase-m7-stop
+        robobase-rpmsg-tty-setup
+        robobase-m7.service
+        robobase-rpmsg-tty.service
   recipes-kernel/
     linux/
       linux-imx_%.bbappend
@@ -178,6 +192,39 @@ meta-robobase
 ```
 
 说明 layer 已经被 BitBake 纳入解析。
+
+### 3.3 当前 RoboBase M7 相关 recipe
+
+`robobase-rpmsg-test`：
+
+```text
+安装 /usr/bin/robobase-rpmsg-test
+用于 echo、safety lease、status query、clear fault 和 debug input 验证。
+```
+
+`robobase-m7-firmware`：
+
+```text
+把 M7 工程预编译 ELF 安装到 /lib/firmware/robobase_m7_rpmsg_tty_echo.elf
+```
+
+`robobase-m7-services`：
+
+```text
+安装 systemd unit 和脚本
+开机自动启动 M7 remoteproc
+自动加载 imx_rpmsg_tty
+等待 /dev/ttyRPMSG* 出现
+```
+
+`robobase-image` 当前会安装：
+
+```text
+test-yocto
+robobase-rpmsg-test
+robobase-m7-firmware
+robobase-m7-services
+```
 
 ---
 

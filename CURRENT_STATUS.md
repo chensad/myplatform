@@ -1,6 +1,6 @@
 # Current Project Status
 
-Updated: 2026-05-08
+Updated: 2026-05-14
 
 This file is intended as the first file to read when starting a new Codex CLI
 session. It captures the workspace context, current project state, verified
@@ -205,6 +205,14 @@ Current status:
   protocol frames over `/dev/ttyRPMSG30`.
 - A Linux user-space RPMsg tty echo and safety protocol test tool recipe now exists:
   `robobase-rpmsg-test`.
+- M7 safety input handling has been split into a real GPIO input layer.
+- M7 now samples J25 pin 23 / GPIO5_IO10 for E-stop NC and J25 pin 21 /
+  GPIO5_IO12 for bumper NC.
+- M7 safety work is now driven by a SysTick-backed 1ms pending tick path instead
+  of being tied directly to RPMsg receive cadence.
+- `robobase-m7-firmware` installs the M7 ELF into `/lib/firmware`.
+- `robobase-m7-services` installs systemd services for automatic M7 remoteproc
+  startup and RPMsg TTY loading.
 - The latest source walkthrough records the minimal RPMsg path as successfully
   reaching `/dev/ttyRPMSG30` echo.
 
@@ -253,6 +261,8 @@ Important documents:
 - `docs/boards/myir_imx8m_plus_remoteproc_tcm_hang_debug.md`
 - `docs/boards/myir_imx8m_plus_minimal_m7_rpmsg_firmware.md`
 - `docs/boards/myir_imx8m_plus_remoteproc_rpmsg_source_walkthrough.md`
+- `docs/boards/myir_imx8m_plus_m7_local_watchdog_validation.md`
+- `docs/boards/myir_imx8m_plus_m7_autostart_services.md`
 - `docs/boards/myir_imx8m_plus_jetson_robobase_project_roadmap.md`
 
 ## i.MX8MP Yocto Details
@@ -308,6 +318,8 @@ conf/layer.conf
 recipes-core/images/robobase-image.bb
 recipes-robobase/robobase-demo/test-yocto_0.1.bb
 recipes-robobase/robobase-rpmsg-test/robobase-rpmsg-test_0.1.bb
+recipes-robobase/robobase-m7-firmware/robobase-m7-firmware_0.1.bb
+recipes-robobase/robobase-m7-services/robobase-m7-services_0.1.bb
 recipes-kernel/linux/linux-imx_%.bbappend
 recipes-kernel/linux/files/0001-myir-imx8mp-enable-cm7-remoteproc.patch
 recipes-kernel/linux/files/0002-remoteproc-add-robobase-cm7-boot-debug-logs.patch
@@ -322,13 +334,20 @@ platform/common/include/robobase/rb_safety_proto.h
 Notes:
 
 - `robobase-image.bb` currently requires the MYIR `myir-image-full.bb` and
-  appends `test-yocto` and `robobase-rpmsg-test`.
+  appends `test-yocto`, `robobase-rpmsg-test`, `robobase-m7-firmware`, and
+  `robobase-m7-services`.
 - `robobase-rpmsg-test` installs `/usr/bin/robobase-rpmsg-test`, a Linux
   user-space tool for writing to `/dev/ttyRPMSG30`, verifying the echoed
   response from the M7 RPMsg tty firmware, and sending first-version RoboBase
-  safety protocol messages.
+  safety protocol messages. It also supports GPIO debug input commands for
+  bench validation.
+- `robobase-m7-firmware` installs
+  `/lib/firmware/robobase_m7_rpmsg_tty_echo.elf` from the M7 build output.
+- `robobase-m7-services` installs and enables `robobase-m7.service` and
+  `robobase-rpmsg-tty.service`.
 - `rb_safety_proto.h` defines the first shared Linux/M7 safety ABI:
-  `LEASE`, `STATUS`, `CLEAR_FAULT`, state enum, and fault bitmask.
+  `LEASE`, `STATUS`, `CLEAR_FAULT`, `DEBUG_INPUTS`, state enum, and fault
+  bitmask.
 - `linux-imx_%.bbappend` appends the CM7 remoteproc DTS patch and a debug patch.
 - The debug patch is useful during bring-up but should be removed or converted
   to `dev_dbg` once the path is stable.
@@ -425,9 +444,15 @@ cd /home/compile/workstation/project/codex/myplatform/third_party/m7/SDK_2_10_0_
 Deploy:
 
 ```bash
-scp -O debug/robobase_m7_boot_only.elf root@192.168.1.8:/lib/firmware/
-scp -O debug/robobase_m7_rpmsg_tty_echo.elf root@192.168.1.8:/lib/firmware/
+bitbake robobase-m7-firmware
+bitbake robobase-m7-services
+bitbake robobase-image
 ```
+
+The current productized path installs
+`/lib/firmware/robobase_m7_rpmsg_tty_echo.elf` into the image and starts it via
+systemd. Manual `scp` is still useful for quick bring-up, but is no longer the
+preferred validation path.
 
 RPMsg shared memory layout:
 
@@ -480,13 +505,23 @@ modprobe imx_rpmsg_tty
 lsmod | grep -Ei 'rpmsg|imx_rpmsg_tty'
 ```
 
-Start firmware:
+Manual start firmware:
 
 ```sh
 R=/sys/class/remoteproc/remoteproc0
 echo robobase_m7_rpmsg_tty_echo.elf > "$R/firmware"
 echo start > "$R/state"
 cat "$R/state"
+```
+
+Preferred automatic services:
+
+```sh
+systemctl status robobase-m7.service
+systemctl status robobase-rpmsg-tty.service
+systemctl restart robobase-m7.service
+systemctl restart robobase-rpmsg-tty.service
+ls /dev/ttyRPMSG*
 ```
 
 Inspect:
@@ -513,6 +548,19 @@ robobase-rpmsg-test --safety -d /dev/ttyRPMSG30 --upstream-invalid
 robobase-rpmsg-test --safety -d /dev/ttyRPMSG30 --driver-fault
 robobase-rpmsg-test --safety -d /dev/ttyRPMSG30 --power-fault
 robobase-rpmsg-test --safety -d /dev/ttyRPMSG30 --clear-fault 0xffffffff
+```
+
+GPIO safety input status is included in `STATUS`:
+
+```text
+estop_nc=<0|1> bumper_nc=<0|1>
+```
+
+Current hardware mapping:
+
+```text
+E-stop NC auxiliary contact: J25 pin 23, ECSPI2_SCLK_3V3, GPIO5_IO10
+Bumper/microswitch NC:       J25 pin 21, ECSPI2_MISO_3V3, GPIO5_IO12
 ```
 
 Expected first-version behavior:
@@ -603,26 +651,33 @@ Highest priority for the active robot path:
 3. Validate echo mode first, then validate safety mode:
    `--safety`, `--upstream-invalid`, `--driver-fault`, `--power-fault`, and
    `--clear-fault`.
-4. Connect real M7-side estop and bumper GPIO inputs.
-5. Rename Linux-provided `driver_ok` and `power_ok` fields to make the safety
+1. Replace temporary/noisy remoteproc debug logs with quieter debug-level output
+   once no longer needed.
+2. Decide whether to keep M7 in bare-metal cooperative scheduling for the next
+   milestone or introduce RTOS for a high-priority safety task.
+3. Add CRC or another integrity check for the shared Linux/M7 safety protocol.
+4. Rename Linux-provided `driver_ok` and `power_ok` fields to make the safety
    responsibility boundary clearer.
-6. Add a Yocto recipe to install the M7 firmware into `/lib/firmware`.
-7. Remove or reduce noisy remoteproc debug logs after the bring-up path is
-   stable.
+5. Wire and validate the final two-NC E-stop and bumper hardware path.
+6. Start designing the permanent `robobase-safetyd` Linux daemon. The current
+   `robobase-rpmsg-test` remains a validation tool, not the final service
+   process.
 
 Do not prioritize Jetson/ROS2 integration before the i.MX8MP lower-board and
 M7 safety chain are stable.
 
-## Latest Implementation Snapshot On 2026-05-08
+## Latest Implementation Snapshot On 2026-05-14
 
-The first RoboBase M7 safety protocol draft has been implemented over the
-existing `/dev/ttyRPMSG30` link.
+The first RoboBase M7 safety protocol has been extended into a boot-integrated
+lower-board safety bring-up path over `/dev/ttyRPMSG30`.
 
 Implemented source paths:
 
 ```text
 platform/common/include/robobase/rb_safety_proto.h
 platform/boards/myir_imx8m_plus/yocto/layers/meta-robobase/recipes-robobase/robobase-rpmsg-test/
+platform/boards/myir_imx8m_plus/yocto/layers/meta-robobase/recipes-robobase/robobase-m7-firmware/
+platform/boards/myir_imx8m_plus/yocto/layers/meta-robobase/recipes-robobase/robobase-m7-services/
 third_party/m7/SDK_2_10_0_EVK-MIMX8MP/boards/evkmimx8mp/demo_apps/robobase_m7_boot_only/
 ```
 
@@ -638,6 +693,10 @@ Implemented protocol pieces:
   power fault, protocol error
 - M7 local SysTick watchdog detects Linux lease expiry even when no new RPMsg
   frame arrives.
+- M7 1ms safety tick processing samples real GPIO inputs and updates watchdog
+  state outside the SysTick interrupt.
+- Systemd can start M7 via remoteproc and then load RPMsg TTY automatically.
+- Yocto can package the M7 ELF into `/lib/firmware`.
 
 Verified locally:
 
@@ -645,6 +704,8 @@ Verified locally:
 gcc -Wall -Wextra -std=c11 ... robobase-rpmsg-test.c
 ./build_debug.sh for robobase_m7_rpmsg_tty_echo.elf
 bitbake robobase-rpmsg-test
+bitbake robobase-m7-firmware
+bitbake robobase-m7-services -n
 git diff --check
 ```
 
@@ -660,10 +721,19 @@ robobase-rpmsg-test --query-status -d /dev/ttyRPMSG30
 -> state=SAFE_STOP motion=0 fault=0x00000004
 ```
 
+Also verified on board:
+
+```text
+robobase-image with robobase-m7-firmware and robobase-m7-services boots.
+M7 firmware is present under /lib/firmware.
+robobase-m7.service and robobase-rpmsg-tty.service bring up the RPMsg path.
+```
+
 Detailed validation note:
 
 ```text
 docs/boards/myir_imx8m_plus_m7_local_watchdog_validation.md
+docs/boards/myir_imx8m_plus_m7_autostart_services.md
 ```
 
 ## Known Risks And Notes
