@@ -19,6 +19,10 @@ INSANE_SKIP_${PN} += "arch already-stripped"
 do_configure[noexec] = "1"
 do_compile[noexec] = "1"
 
+# The prebuilt ELF lives outside SRC_URI. Include its contents in the install
+# task signature so rebuilding M7 invalidates a cached firmware package.
+do_install[file-checksums] += "${ROBOBASE_M7_ELF}:True"
+
 do_install() {
     if [ ! -f "${ROBOBASE_M7_ELF}" ]; then
         bbfatal "RoboBase M7 firmware ELF not found: ${ROBOBASE_M7_ELF}. Build the M7 firmware first."

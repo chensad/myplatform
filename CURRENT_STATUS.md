@@ -1,6 +1,24 @@
 # Current Project Status
 
-Updated: 2026-05-14
+Updated: 2026-09-19
+
+## Latest: J25 pin19 MPU fix (2026-09-19)
+
+- User board tests exposed pin19 staying high while `motion=0`. M7 snapshots
+  showed correct output initialization followed by adjacent-register damage.
+- A diagnostic candidate mapping `0x30000000..0x30ffffff` as Device memory
+  preserved mux/direction state. The user reports switch, latch and lease-timeout
+  voltage checks all passed on that candidate (no timing trace was supplied).
+- The same MPU setup is now integrated before `robobase_safe_init()` in the
+  formal RPMsg firmware, without diagnostic commands or full board/cache setup.
+- The firmware recipe now includes the external ELF in `do_install` file
+  checksums so changed M7 contents invalidate the cached install task.
+- Formal ELF build passed locally; final ELF deployment/regression and a new
+  Yocto image are still pending. Existing image contents must not be assumed
+  updated by this source/build change.
+- Debug report: [GPIO19 MPU debug](docs/boards/myir_imx8m_plus_m7_gpio19_mpu_debug.md).
+- Earlier sections retain historical progress and pre-fix validation plans;
+  use this update and the debug report for the latest GPIO19 status.
 
 This file is intended as the first file to read when starting a new Codex CLI
 session. It captures the workspace context, current project state, verified
