@@ -1,6 +1,53 @@
 # Current Project Status
 
-Updated: 2026-09-19
+Updated: 2026-09-27
+
+## Latest: RPMsg TTY stop/teardown fix built (2026-09-27)
+
+- Persistent deployment is now requested. Added
+  `tools/board-install-rpmsg-tty-fix.py`: validates the tested module hash and
+  metadata, backs up the modinfo-selected system file, atomically replaces it,
+  runs depmod, and attempts rollback on post-replacement failure. Five local
+  temporary-file tests passed. Board install/reboot verification are pending;
+  no full image rebuild or remote board installation has been performed.
+
+- Board stale-FD and 10 active-query stop/start cycles PASSED. The user
+  supplied `/home/rb-tty-regression-w4h46uvc/events.log`, ending with
+  `CYCLE 10/10 PASS` at 3760.364s and `ALL REQUESTED TESTS PASS` at 3760.445s.
+  Senders disconnected with ENODEV; old FDs returned EIO after restart;
+  fresh STATUS queries worked both before and after closing old FDs.
+  The final marker includes the script's kernel-log checks. Full dmesg and
+  summary.json were not independently retrieved by the assistant.
+- `tools/board-test-rpmsg-tty-lifecycle.py` sends HELLO only, no lease or
+  clear-fault. Its initial debug/BUG regex and handshake-echo parser issues
+  were corrected; seven persistent host tests passed. The board test is
+  lifecycle regression, not exhaustive backpressure or long-term leak testing.
+
+- Added `0003-rpmsg-tty-serialize-remove-and-keep-port-alive.patch` to the
+  meta-robobase Linux bbappend. Persistent changes live in the Yocto layer;
+  the existing kernel-source work directory was not modified.
+- Per-port locking serializes non-buffer-waiting `rpmsg_trysend` with offline
+  transition. Installed TTYs retain port references; the binding reference is
+  released by devres after the RPMsg core drains RX callbacks. Removal hangs up
+  old TTYs and removes dynamic nodes so a new channel can reuse ttyRPMSG30.
+- TX buffer exhaustion now reports EAGAIN instead of sleeping up to 15 seconds.
+  This is an intentional backpressure behavior change, documented for clients.
+- `python3 tools/verify-rpmsg-tty-fix.py` applies the patch to a scratch copy and
+  builds an ARM64 module against the existing BSP configuration/Module.symvers.
+  Patch application, W=1 compilation, MODPOST/link, checkpatch (--no-signoff),
+  and diff whitespace checks passed locally. Runtime testing was done by the user.
+- Module: `build/out/myir_imx8m_plus/diagnostics/rpmsg-tty-stop-fix/imx_rpmsg_tty.ko`;
+  version `robobase-safe-teardown-1`. Manifest/logs are in the same directory.
+  Vermagic matches the reported 5.10.72-lts-5.10.y+ge456793341af kernel release;
+  the user has now confirmed the new driver loaded correctly on the board.
+  The user reports one active-writer stop/start cycle passed. Supplied logs
+  show safe teardown v1 registration at 388.590723s and clean stop at 880.975325s
+  with no Oops in the provided excerpt; restored communication is user-reported.
+  Old-FD-across-restart and 10 repeated cycles subsequently passed as above.
+- [Technical report and deployment/regression steps](docs/boards/myir_imx8m_plus_rpmsg_stop_oops.md).
+  Temporary board loading was performed by the user. No full BitBake image
+  rebuild has been performed.
+  This Linux recovery fix does not implement M7-failure automatic output removal.
 
 ## Latest: J25 pin19 MPU fix (2026-09-19)
 

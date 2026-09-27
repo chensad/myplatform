@@ -1,0 +1,432 @@
+Subject: [PATCH] rpmsg: imx tty: serialize teardown and retain installed ports
+
+An open tty can outlive remoteproc stop. Stop new writes and drain the
+non-waiting send critical section before the RPMsg core tears down queues.
+Retain tty ports until both endpoint callbacks and installed ttys are gone.
+Explicitly remove dynamic tty devices so a restarted channel can reuse its
+name while old file descriptors finish closing.
+
+Use a devres action only for the binding reference. rpmsg_dev_remove
+destroys and synchronizes the endpoint before the driver core releases
+devres. Do not use devm_kzalloc for storage that outlives the binding.
+
+Upstream-Status: Inappropriate [MYIR BSP-specific driver]
+---
+--- a/drivers/rpmsg/imx_rpmsg_tty.c
++++ b/drivers/rpmsg/imx_rpmsg_tty.c
+@@ -4,26 +4,23 @@
+  */
+ 
+ #include <linux/slab.h>
+-#include <linux/delay.h>
+ #include <linux/kernel.h>
+ #include <linux/module.h>
++#include <linux/mutex.h>
+ #include <linux/rpmsg.h>
+ #include <linux/tty.h>
+ #include <linux/tty_driver.h>
+ #include <linux/tty_flip.h>
+-#include <linux/virtio.h>
+-
+-/* this needs to be less then (RPMSG_BUF_SIZE - sizeof(struct rpmsg_hdr)) */
++
++/* This must be less than RPMSG_BUF_SIZE - sizeof(struct rpmsg_hdr). */
+ #define RPMSG_MAX_SIZE		256
+ #define MSG		"hello world!"
+ 
+-/*
+- * struct rpmsgtty_port - Wrapper struct for imx rpmsg tty port.
+- * @port:		TTY port data
+- */
+ struct rpmsgtty_port {
+ 	struct tty_port		port;
+ 	spinlock_t		rx_lock;
++	/* Serializes endpoint access against removal; never wait for TX buffers. */
++	struct mutex		tx_lock;
+ 	struct rpmsg_device	*rpdev;
+ 	struct tty_driver	*rpmsgtty_driver;
+ };
+@@ -31,198 +28,259 @@
+ static int rpmsg_tty_cb(struct rpmsg_device *rpdev, void *data, int len,
+ 						void *priv, u32 src)
+ {
++	struct rpmsgtty_port *cport = dev_get_drvdata(&rpdev->dev);
++	unsigned char *cbuf;
+ 	int space;
+-	unsigned char *cbuf;
+-	struct rpmsgtty_port *cport = dev_get_drvdata(&rpdev->dev);
+-
+-	/* flush the recv-ed none-zero data to tty node */
+-	if (len == 0)
++
++	/* The binding reference lives until the core has destroyed the endpoint. */
++	if (!cport || !READ_ONCE(cport->rpdev) || len <= 0)
+ 		return 0;
+-
+-	dev_dbg(&rpdev->dev, "msg(<- src 0x%x) len %d\n", src, len);
+-
+-	print_hex_dump(KERN_DEBUG, __func__, DUMP_PREFIX_NONE, 16, 1,
+-			data, len,  true);
+ 
+ 	spin_lock_bh(&cport->rx_lock);
+ 	space = tty_prepare_flip_string(&cport->port, &cbuf, len);
+ 	if (space <= 0) {
+-		dev_err(&rpdev->dev, "No memory for tty_prepare_flip_string\n");
+ 		spin_unlock_bh(&cport->rx_lock);
+ 		return -ENOMEM;
+ 	}
+ 
+-	memcpy(cbuf, data, len);
++	memcpy(cbuf, data, space);
+ 	tty_flip_buffer_push(&cport->port);
+ 	spin_unlock_bh(&cport->rx_lock);
+ 
+ 	return 0;
+ }
+ 
+-static struct tty_port_operations  rpmsgtty_port_ops = { };
++static void rpmsgtty_port_destruct(struct tty_port *port)
++{
++	struct rpmsgtty_port *cport = container_of(port, struct rpmsgtty_port, port);
++
++	kfree(cport);
++}
++
++static const struct tty_port_operations rpmsgtty_port_ops = {
++	.destruct = rpmsgtty_port_destruct,
++};
++
++static void rpmsgtty_put_port(void *data)
++{
++	struct rpmsgtty_port *cport = data;
++
++	tty_port_put(&cport->port);
++}
+ 
+ static int rpmsgtty_install(struct tty_driver *driver, struct tty_struct *tty)
+ {
+ 	struct rpmsgtty_port *cport = driver->driver_state;
+-
+-	return tty_port_install(&cport->port, driver, tty);
++	int ret;
++
++	/* tty_mutex serializes install against tty_unregister_driver(). */
++	mutex_lock(&cport->tx_lock);
++	if (!cport->rpdev) {
++		ret = -ENODEV;
++		goto out;
++	}
++
++	tty_port_get(&cport->port);
++	ret = tty_port_install(&cport->port, driver, tty);
++	if (ret)
++		tty_port_put(&cport->port);
++out:
++	mutex_unlock(&cport->tx_lock);
++	return ret;
++}
++
++static void rpmsgtty_cleanup(struct tty_struct *tty)
++{
++	/* Paired with install, not open/close: multiple files can share a tty. */
++	tty_port_put(tty->port);
+ }
+ 
+ static int rpmsgtty_open(struct tty_struct *tty, struct file *filp)
+ {
+-	return tty_port_open(tty->port, tty, filp);
++	struct rpmsgtty_port *cport = container_of(tty->port,
++						struct rpmsgtty_port, port);
++	int ret;
++
++	mutex_lock(&cport->tx_lock);
++	ret = cport->rpdev ? tty_port_open(tty->port, tty, filp) : -ENODEV;
++	mutex_unlock(&cport->tx_lock);
++	return ret;
+ }
+ 
+ static void rpmsgtty_close(struct tty_struct *tty, struct file *filp)
+ {
+-	return tty_port_close(tty->port, tty, filp);
++	tty_port_close(tty->port, tty, filp);
++}
++
++static void rpmsgtty_hangup(struct tty_struct *tty)
++{
++	tty_port_hangup(tty->port);
+ }
+ 
+ static int rpmsgtty_write(struct tty_struct *tty, const unsigned char *buf,
+ 			 int total)
+ {
+-	int count, ret = 0;
+-	const unsigned char *tbuf;
+-	struct rpmsgtty_port *rptty_port = container_of(tty->port,
+-			struct rpmsgtty_port, port);
+-	struct rpmsg_device *rpdev = rptty_port->rpdev;
+-
+-	if (buf == NULL) {
+-		pr_err("buf shouldn't be null.\n");
+-		return -ENOMEM;
++	struct rpmsgtty_port *cport = container_of(tty->port,
++						struct rpmsgtty_port, port);
++	int count = min(total, RPMSG_MAX_SIZE);
++	int ret;
++
++	if (total <= 0)
++		return 0;
++
++	ret = mutex_lock_interruptible(&cport->tx_lock);
++	if (ret)
++		return ret;
++	if (!cport->rpdev) {
++		ret = -ENODEV;
++		goto out;
+ 	}
+ 
+-	count = total;
+-	tbuf = buf;
+-	do {
+-		/* send a message to our remote processor */
+-		ret = rpmsg_send(rpdev->ept, (void *)tbuf,
+-			count > RPMSG_MAX_SIZE ? RPMSG_MAX_SIZE : count);
+-		if (ret) {
+-			dev_err(&rpdev->dev, "rpmsg_send failed: %d\n", ret);
+-			return ret;
+-		}
+-
+-		if (count > RPMSG_MAX_SIZE) {
+-			count -= RPMSG_MAX_SIZE;
+-			tbuf += RPMSG_MAX_SIZE;
+-		} else {
+-			count = 0;
+-		}
+-	} while (count > 0);
+-
+-	return total;
++	/*
++	 * A blocking rpmsg_send can sleep while remoteproc is stopping. Use one
++	 * non-waiting packet per call so remove can drain this critical section
++	 * before the RPMsg core destroys the endpoint and transport queues.
++	 * The TTY layer handles short writes. Backpressure is reported to callers.
++	 */
++	ret = rpmsg_trysend(cport->rpdev->ept, (void *)buf, count);
++	if (!ret)
++		ret = count;
++	else if (ret == -ENOMEM)
++		ret = -EAGAIN;
++out:
++	mutex_unlock(&cport->tx_lock);
++	return ret;
+ }
+ 
+ static int rpmsgtty_write_room(struct tty_struct *tty)
+ {
+-	/* report the space in the rpmsg buffer */
+-	return RPMSG_MAX_SIZE;
++	struct rpmsgtty_port *cport = container_of(tty->port,
++						struct rpmsgtty_port, port);
++
++	return READ_ONCE(cport->rpdev) ? RPMSG_MAX_SIZE : 0;
+ }
+ 
+ static const struct tty_operations imxrpmsgtty_ops = {
+-	.install		= rpmsgtty_install,
+-	.open			= rpmsgtty_open,
+-	.close			= rpmsgtty_close,
+-	.write			= rpmsgtty_write,
+-	.write_room		= rpmsgtty_write_room,
+-};
++	.install	= rpmsgtty_install,
++	.cleanup	= rpmsgtty_cleanup,
++	.open		= rpmsgtty_open,
++	.close		= rpmsgtty_close,
++	.hangup		= rpmsgtty_hangup,
++	.write		= rpmsgtty_write,
++	.write_room	= rpmsgtty_write_room,
++};
++
++static void rpmsgtty_offline(struct rpmsgtty_port *cport)
++{
++	mutex_lock(&cport->tx_lock);
++	WRITE_ONCE(cport->rpdev, NULL);
++	mutex_unlock(&cport->tx_lock);
++}
+ 
+ static int rpmsg_tty_probe(struct rpmsg_device *rpdev)
+ {
++	struct rpmsgtty_port *cport;
++	struct tty_driver *driver;
++	struct device *tty_dev;
+ 	int ret;
+-	struct rpmsgtty_port *cport;
+-	struct tty_driver *rpmsgtty_driver;
+-
+-	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
+-			rpdev->src, rpdev->dst);
+-
+-	cport = devm_kzalloc(&rpdev->dev, sizeof(*cport), GFP_KERNEL);
++
++	if (rpdev->dst > INT_MAX)
++		return -EINVAL;
++
++	cport = kzalloc(sizeof(*cport), GFP_KERNEL);
+ 	if (!cport)
+ 		return -ENOMEM;
+-
+-	rpmsgtty_driver = tty_alloc_driver(1, TTY_DRIVER_UNNUMBERED_NODE);
+-	if (IS_ERR(rpmsgtty_driver)) {
+-		kfree(cport);
+-		return PTR_ERR(rpmsgtty_driver);
+-	}
+-
+-	rpmsgtty_driver->driver_name = "rpmsg_tty";
+-	rpmsgtty_driver->name = kasprintf(GFP_KERNEL, "ttyRPMSG%d", rpdev->dst);
+-	rpmsgtty_driver->major = UNNAMED_MAJOR;
+-	rpmsgtty_driver->minor_start = 0;
+-	rpmsgtty_driver->type = TTY_DRIVER_TYPE_CONSOLE;
+-	rpmsgtty_driver->init_termios = tty_std_termios;
+-
+-	tty_set_operations(rpmsgtty_driver, &imxrpmsgtty_ops);
+ 
+ 	tty_port_init(&cport->port);
+ 	cport->port.ops = &rpmsgtty_port_ops;
+ 	spin_lock_init(&cport->rx_lock);
+-	cport->port.low_latency = cport->port.flags | ASYNC_LOW_LATENCY;
++	mutex_init(&cport->tx_lock);
++
++	/*
++	 * Keep the binding reference past ->remove(): rpmsg_dev_remove() destroys
++	 * the endpoint and drains its RX callback before devres releases this
++	 * reference. Installed ttys hold their own references until ->cleanup().
++	 * This ordering also applies when probe fails.
++	 */
++	ret = devm_add_action_or_reset(&rpdev->dev, rpmsgtty_put_port, cport);
++	if (ret)
++		return ret;
++
+ 	cport->rpdev = rpdev;
+ 	dev_set_drvdata(&rpdev->dev, cport);
+-	rpmsgtty_driver->driver_state = cport;
+-	cport->rpmsgtty_driver = rpmsgtty_driver;
+-
+-	ret = tty_register_driver(cport->rpmsgtty_driver);
+-	if (ret < 0) {
+-		pr_err("Couldn't install rpmsg tty driver: ret %d\n", ret);
+-		goto error1;
+-	} else {
+-		pr_info("Install rpmsg tty driver!\n");
++
++	driver = tty_alloc_driver(1, TTY_DRIVER_DYNAMIC_DEV);
++	if (IS_ERR(driver))
++		return PTR_ERR(driver);
++
++	/* Preserve /dev/ttyRPMSG<remote endpoint> without an allocated name. */
++	driver->driver_name = "rpmsg_tty";
++	driver->name = "ttyRPMSG";
++	driver->name_base = rpdev->dst;
++	driver->major = UNNAMED_MAJOR;
++	driver->type = TTY_DRIVER_TYPE_CONSOLE;
++	driver->init_termios = tty_std_termios;
++	driver->driver_state = cport;
++	cport->rpmsgtty_driver = driver;
++	tty_set_operations(driver, &imxrpmsgtty_ops);
++
++	/* Complete the handshake before publishing a device userspace can open. */
++	ret = rpmsg_trysend(rpdev->ept, MSG, strlen(MSG));
++	if (ret)
++		goto put_driver;
++
++	ret = tty_register_driver(driver);
++	if (ret)
++		goto put_driver;
++
++	tty_dev = tty_register_device(driver, 0, &rpdev->dev);
++	if (IS_ERR(tty_dev)) {
++		ret = PTR_ERR(tty_dev);
++		rpmsgtty_offline(cport);
++		tty_unregister_driver(driver);
++		tty_port_tty_hangup(&cport->port, false);
++		goto put_driver;
+ 	}
+ 
+-	/*
+-	 * send a message to our remote processor, and tell remote
+-	 * processor about this channel
+-	 */
+-	ret = rpmsg_send(rpdev->ept, MSG, strlen(MSG));
+-	if (ret) {
+-		dev_err(&rpdev->dev, "rpmsg_send failed: %d\n", ret);
+-		goto error;
+-	}
+-
++	dev_info(&rpdev->dev, "registered ttyRPMSG%u (safe teardown v1)\n",
++		 rpdev->dst);
+ 	return 0;
+ 
+-error:
+-	tty_unregister_driver(cport->rpmsgtty_driver);
+-error1:
+-	put_tty_driver(cport->rpmsgtty_driver);
+-	tty_port_destroy(&cport->port);
+-	cport->rpmsgtty_driver = NULL;
+-	kfree(cport);
+-
++put_driver:
++	put_tty_driver(driver);
+ 	return ret;
+ }
+ 
+ static void rpmsg_tty_remove(struct rpmsg_device *rpdev)
+ {
+ 	struct rpmsgtty_port *cport = dev_get_drvdata(&rpdev->dev);
+-
++	struct tty_driver *driver = cport->rpmsgtty_driver;
++
++	/* No endpoint/queue access from writers is possible after this returns. */
++	rpmsgtty_offline(cport);
++	tty_unregister_device(driver, 0);
++	tty_unregister_driver(driver);
++	/* Never hold tx_lock while entering the TTY hangup path. */
++	tty_port_tty_hangup(&cport->port, false);
++	put_tty_driver(driver);
+ 	dev_info(&rpdev->dev, "rpmsg tty driver is removed\n");
+-
+-	tty_unregister_driver(cport->rpmsgtty_driver);
+-	kfree(cport->rpmsgtty_driver->name);
+-	put_tty_driver(cport->rpmsgtty_driver);
+-	tty_port_destroy(&cport->port);
+-	cport->rpmsgtty_driver = NULL;
++	/* The binding's port reference is released by devres, after RX quiesces. */
+ }
+ 
+ static struct rpmsg_device_id rpmsg_driver_tty_id_table[] = {
+-	{ .name	= "rpmsg-virtual-tty-channel-1" },
+-	{ .name	= "rpmsg-virtual-tty-channel" },
++	{ .name = "rpmsg-virtual-tty-channel-1" },
++	{ .name = "rpmsg-virtual-tty-channel" },
+ 	{ .name = "rpmsg-openamp-demo-channel" },
+ 	{ },
+ };
+ 
+ static struct rpmsg_driver rpmsg_tty_driver = {
+-	.drv.name	= KBUILD_MODNAME,
+-	.drv.owner	= THIS_MODULE,
+-	.id_table	= rpmsg_driver_tty_id_table,
+-	.probe		= rpmsg_tty_probe,
+-	.callback	= rpmsg_tty_cb,
+-	.remove		= rpmsg_tty_remove,
++	.drv.name = KBUILD_MODNAME,
++	.drv.owner = THIS_MODULE,
++	.id_table = rpmsg_driver_tty_id_table,
++	.probe = rpmsg_tty_probe,
++	.callback = rpmsg_tty_cb,
++	.remove = rpmsg_tty_remove,
+ };
+ 
+ static int __init init(void)
+@@ -240,3 +298,4 @@
+ MODULE_AUTHOR("Freescale Semiconductor, Inc.");
+ MODULE_DESCRIPTION("iMX virtio remote processor messaging tty driver");
+ MODULE_LICENSE("GPL v2");
++MODULE_VERSION("robobase-safe-teardown-1");
