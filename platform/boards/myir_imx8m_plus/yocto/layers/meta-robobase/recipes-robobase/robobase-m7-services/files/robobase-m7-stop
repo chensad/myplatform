@@ -37,11 +37,39 @@ rproc="${ROBOBASE_M7_REMOTEPROC:-}"
 if [ -z "$rproc" ]; then
     if ! rproc="$(find_remoteproc)"; then
         echo "robobase-m7-stop: no CM7 remoteproc found under /sys/class/remoteproc" >&2
-        exit 0
+        exit 1
     fi
 fi
 
-if [ -w "$rproc/state" ]; then
-    echo stop > "$rproc/state" || true
-    echo "robobase-m7-stop: stopped $rproc"
+state="$(cat "$rproc/state")"
+case "$state" in
+    offline)
+        echo "robobase-m7-stop: already offline: $rproc"
+        exit 0
+        ;;
+    running|attached) ;;
+    *)
+        echo "robobase-m7-stop: cannot quiesce state=$state; not forcing stop" >&2
+        exit 1
+        ;;
+esac
+
+# ACK must include the firmware's reset-only stop latch, not just motion=0.
+# A busy TTY, old firmware, or missing reply must never fall through to stop.
+if ! robobase-rpmsg-test --quiesce \
+    -d "${ROBOBASE_RPMSG_TTY_DEVICE:-/dev/ttyRPMSG30}" \
+    -t "${ROBOBASE_M7_QUIESCE_TIMEOUT_MS:-1500}"; then
+    echo "robobase-m7-stop: quiesce failed; remoteproc left running (stop RPMsg clients first)" >&2
+    exit 1
 fi
+
+if ! echo stop > "$rproc/state"; then
+    echo "robobase-m7-stop: remoteproc stop failed after quiesce" >&2
+    exit 1
+fi
+state="$(cat "$rproc/state")"
+if [ "$state" != offline ]; then
+    echo "robobase-m7-stop: expected offline, got $state" >&2
+    exit 1
+fi
+echo "robobase-m7-stop: quiesced and stopped $rproc"

@@ -1,6 +1,33 @@
 # Current Project Status
 
-Updated: 2026-09-27
+Updated: 2026-09-28
+
+## Latest: normal M7 shutdown quiesce implemented (2026-09-28)
+
+- Matched board update bundle now includes `board-install-m7-normal-stop.py`.
+  Five installer tests passed. It requires offline M7 and stopped services,
+  backs up all four files, validates hashes, and attempts rollback on failure.
+  User subsequently demonstrated QUIESCE confirmation and normal stop to
+  offline with a measured low pin2. Installation hashes were not supplied.
+
+- User chose software-only normal shutdown; no external watchdog purchase or
+  hardware changes. QUIESCE (type 6) latches motion off until firmware reset,
+  completes the GPIO write before STATUS, and reports STOP_REQUESTED (0x80).
+- Linux tool verifies that acknowledgement; stop and running-core restart paths
+  refuse remoteproc stop without it. Clients must release the TTY first.
+- Eleven host state-machine/protocol/service tests passed. Cortex-M7 ELF and
+  ARM64 Linux tool built; vendor M7 warnings remain. Artifacts and hashes:
+  `build/out/myir_imx8m_plus/diagnostics/m7-normal-stop/`.
+- First board check passed: QUIESCE reports motion=0 and fault=0x8c,
+  service stop reaches offline, and the user measured a low output.
+  Authorized-high to stopped-low also passed: all 250 lease exchanges succeeded,
+  final STATUS was motion=1/fault=0, then remoteproc became offline and the user
+  confirmed the expected high-to-low output. No timing waveform was supplied.
+  Stop-latch board testing also passed: CLEAR_FAULT followed by three valid
+  LEASE requests kept motion=0/fault=0x80, with a continuously low measured pin2.
+  The full Yocto image build remains pending.
+  This does not handle a hung M7, direct sysfs stop or guarantee whole-OS shutdown.
+  See [normal stop design and validation](docs/boards/myir_imx8m_plus_m7_stop_output.md).
 
 ## Latest: RPMsg TTY stop/teardown fix built (2026-09-27)
 

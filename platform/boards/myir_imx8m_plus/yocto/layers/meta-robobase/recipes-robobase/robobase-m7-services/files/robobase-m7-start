@@ -62,7 +62,7 @@ fi
 
 case "$state" in
     running|attached)
-        echo stop > "$rproc/state" || true
+        ROBOBASE_M7_REMOTEPROC="$rproc" robobase-m7-stop
         ;;
 esac
 

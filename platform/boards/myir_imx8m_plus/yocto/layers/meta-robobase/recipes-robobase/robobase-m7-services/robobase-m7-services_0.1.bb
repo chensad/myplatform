@@ -18,7 +18,7 @@ inherit systemd
 SYSTEMD_SERVICE_${PN} = "robobase-m7.service robobase-rpmsg-tty.service"
 SYSTEMD_AUTO_ENABLE_${PN} = "enable"
 
-RDEPENDS_${PN} += "kmod robobase-m7-firmware"
+RDEPENDS_${PN} += "kmod robobase-m7-firmware robobase-rpmsg-test"
 
 do_install() {
     install -d ${D}${bindir}

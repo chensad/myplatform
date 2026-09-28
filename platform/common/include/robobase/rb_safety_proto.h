@@ -21,6 +21,8 @@ enum rb_safe_msg_type {
 	RB_SAFE_MSG_STATUS = 3,
 	RB_SAFE_MSG_CLEAR_FAULT = 4,
 	RB_SAFE_MSG_DEBUG_INPUTS = 5,
+	/* Header-only request; STATUS confirms STOP_REQUESTED and motion=0. */
+	RB_SAFE_MSG_QUIESCE = 6,
 };
 
 enum rb_safe_state {
@@ -40,6 +42,8 @@ enum rb_safe_fault_bits {
 	RB_FAULT_DRIVER_FAULT = 1u << 4,
 	RB_FAULT_POWER_FAULT = 1u << 5,
 	RB_FAULT_PROTOCOL_ERROR = 1u << 6,
+	/* Administrative inhibit; CLEAR_FAULT cannot clear it. Reset M7 to re-arm. */
+	RB_FAULT_STOP_REQUESTED = 1u << 7,
 };
 
 struct rb_safe_hdr {

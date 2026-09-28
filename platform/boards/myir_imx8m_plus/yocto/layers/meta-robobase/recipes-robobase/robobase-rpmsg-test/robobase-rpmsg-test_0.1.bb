@@ -8,6 +8,8 @@ S = "${WORKDIR}"
 
 ROBOBASE_COMMON_INCLUDE := "${THISDIR}/../../../../../../../common/include"
 
+do_compile[file-checksums] += "${ROBOBASE_COMMON_INCLUDE}/robobase/rb_safety_proto.h:True"
+
 do_compile() {
     ${CC} ${CFLAGS} -I${ROBOBASE_COMMON_INCLUDE} ${LDFLAGS} robobase-rpmsg-test.c -o robobase-rpmsg-test
 }

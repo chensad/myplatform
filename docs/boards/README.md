@@ -24,3 +24,5 @@
 - `myir_imx8m_plus_m7_local_watchdog_validation.md`
 - `myir_imx8m_plus_rpmsg_stop_oops.md`：活跃TTY发送期间停止M7的Oops定位、驱动修复与回归步骤。
 - `myir_imx8m_plus_jetson_robobase_project_roadmap.md`
+
+- `myir_imx8m_plus_m7_stop_output.md`：M7停核后授权保持高的定位、正常退出QUIESCE修复与板测步骤。

@@ -9,7 +9,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
+#include <sys/file.h>
+#include <time.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -37,6 +38,7 @@ struct app_options {
 	bool power_ok;
 	bool clear_fault;
 	bool query_status;
+	bool quiesce;
 	bool sim_inputs;
 	uint8_t sim_estop_gpio_level;
 	uint8_t sim_bumper_gpio_level;
@@ -44,12 +46,12 @@ struct app_options {
 
 static long now_ms(void)
 {
-	struct timeval tv;
+	struct timespec tv;
 
-	if (gettimeofday(&tv, NULL) < 0)
+	if (clock_gettime(CLOCK_MONOTONIC, &tv) < 0)
 		return 0;
 
-	return tv.tv_sec * 1000L + tv.tv_usec / 1000L;
+	return tv.tv_sec * 1000L + tv.tv_nsec / 1000000L;
 }
 
 static const char *safe_state_name(uint8_t state)
@@ -93,6 +95,7 @@ static void print_usage(const char *prog)
 	printf("      --driver-fault         Send driver_ok=0\n");
 	printf("      --power-fault          Send power_ok=0\n");
 	printf("      --clear-fault MASK     Send CLEAR_FAULT with mask before lease loop\n");
+	printf("      --quiesce              Latch motion off until M7 reset; require confirmation\n");
 	printf("      --query-status         Send HELLO and read STATUS without refreshing lease\n");
 	printf("      --estop-gpio-high      Bias M7 GPIO5_IO10 high: NC open/fault\n");
 	printf("      --estop-gpio-low       Bias M7 GPIO5_IO10 low: NC closed/safe\n");
@@ -164,6 +167,7 @@ static int parse_args(int argc, char **argv, struct app_options *opts)
 	opts->power_ok = true;
 	opts->clear_fault = false;
 	opts->query_status = false;
+	opts->quiesce = false;
 	opts->sim_inputs = false;
 	opts->sim_estop_gpio_level = 0;
 	opts->sim_bumper_gpio_level = 0;
@@ -208,6 +212,8 @@ static int parse_args(int argc, char **argv, struct app_options *opts)
 				return -1;
 			opts->safety_mode = true;
 			opts->clear_fault = true;
+		} else if (!strcmp(argv[i], "--quiesce")) {
+			opts->quiesce = true;
 		} else if (!strcmp(argv[i], "--query-status")) {
 			opts->safety_mode = true;
 			opts->query_status = true;
@@ -246,6 +252,11 @@ static int parse_args(int argc, char **argv, struct app_options *opts)
 		}
 	}
 
+	if (opts->quiesce && (opts->safety_mode || opts->message || opts->list_devices)) {
+		fprintf(stderr, "--quiesce cannot be combined with other operation modes\n");
+		return -1;
+	}
+
 	return 0;
 }
 
@@ -281,7 +292,7 @@ static int configure_tty_raw(int fd)
 
 	if (tcgetattr(fd, &tio) < 0) {
 		fprintf(stderr, "warning: tcgetattr failed: %s\n", strerror(errno));
-		return 0;
+		return -1;
 	}
 
 	cfmakeraw(&tio);
@@ -290,11 +301,10 @@ static int configure_tty_raw(int fd)
 
 	if (tcsetattr(fd, TCSANOW, &tio) < 0) {
 		fprintf(stderr, "warning: tcsetattr failed: %s\n", strerror(errno));
-		return 0;
+		return -1;
 	}
 
-	if (tcflush(fd, TCIOFLUSH) < 0)
-		fprintf(stderr, "warning: tcflush failed: %s\n", strerror(errno));
+	/* Preserve a possible late probe greeting; read_status_frame handles it. */
 
 	return 0;
 }
@@ -484,8 +494,23 @@ static int read_status_frame(int fd, uint32_t expected_seq, int timeout_ms,
 			     struct rb_safe_status_msg *status)
 {
 	struct rb_safe_hdr hdr;
+	unsigned char prefix[4];
+	const char greeting[] = "hello world!";
+	unsigned char rest[sizeof(greeting) - 1 - sizeof(prefix)];
+	long deadline = now_ms() + timeout_ms;
 
-	if (read_exact(fd, (unsigned char *)&hdr, sizeof(hdr), timeout_ms) < 0)
+	if (read_exact(fd, prefix, sizeof(prefix), timeout_ms) < 0)
+		return -1;
+	if (!memcmp(prefix, greeting, sizeof(prefix))) {
+		if (read_exact(fd, rest, sizeof(rest), (int)(deadline - now_ms())) < 0 ||
+		    memcmp(rest, greeting + sizeof(prefix), sizeof(rest)))
+			return -1;
+		if (read_exact(fd, prefix, sizeof(prefix), (int)(deadline - now_ms())) < 0)
+			return -1;
+	}
+	memcpy(&hdr, prefix, sizeof(prefix));
+	if (read_exact(fd, (unsigned char *)&hdr + sizeof(prefix),
+		       sizeof(hdr) - sizeof(prefix), (int)(deadline - now_ms())) < 0)
 		return -1;
 
 	if (!rb_safe_hdr_is_valid(&hdr, sizeof(*status)) ||
@@ -502,7 +527,8 @@ static int read_status_frame(int fd, uint32_t expected_seq, int timeout_ms,
 		return -1;
 	}
 
-	if (read_exact(fd, (unsigned char *)status, sizeof(*status), timeout_ms) < 0)
+	if (read_exact(fd, (unsigned char *)status, sizeof(*status),
+		       (int)(deadline - now_ms())) < 0)
 		return -1;
 
 	return 0;
@@ -581,6 +607,27 @@ static int query_status(int fd, uint32_t seq, int timeout_ms)
 		return -1;
 
 	print_status(0, &status);
+	return 0;
+}
+
+static int quiesce(int fd, int timeout_ms)
+{
+	struct rb_safe_hdr hdr;
+	struct rb_safe_status_msg status;
+	uint32_t seq = (uint32_t)now_ms() ^ ((uint32_t)getpid() << 16);
+
+	rb_safe_hdr_init(&hdr, RB_SAFE_MSG_QUIESCE, seq, 0);
+	if (write_all(fd, (const unsigned char *)&hdr, sizeof(hdr)) < 0 ||
+	    read_status_frame(fd, seq, timeout_ms, &status) < 0)
+		return 1;
+	print_status(0, &status);
+	if (status.motion_enable != 0 ||
+	    !(status.fault_bits & RB_FAULT_STOP_REQUESTED) ||
+	    (status.state != RB_SAFE_STOP && status.state != RB_SAFE_FAULT_LATCHED)) {
+		fprintf(stderr, "QUIESCE not confirmed; refusing normal M7 shutdown\n");
+		return 1;
+	}
+	printf("QUIESCE confirmed: motion=0, stop latched until M7 reset\n");
 	return 0;
 }
 
@@ -700,7 +747,23 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	configure_tty_raw(fd);
+	/* Serialize cooperating clients before any termios changes or I/O.
+	 * Foreign clients must also be stopped: they can otherwise steal replies.
+	 */
+	if (flock(fd, LOCK_EX | LOCK_NB) < 0) {
+		fprintf(stderr, "TTY busy: stop the existing RPMsg client first\n");
+		close(fd);
+		return 1;
+	}
+	if (configure_tty_raw(fd) < 0) {
+		close(fd);
+		return 1;
+	}
+	if (opts.quiesce) {
+		ret = quiesce(fd, opts.timeout_ms);
+		close(fd);
+		return ret;
+	}
 
 	printf("robobase-rpmsg-test\n");
 	printf("  device    : %s\n", opts.device);
